@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "153156873371",
+    "project_id": "oryx-app-41275",
+    "storage_bucket": "oryx-app-41275.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153156873371:android:60412088ea0e6128efea3e",
+        "android_client_info": {
+          "package_name": "com.oryxinternet.cliente"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0wHfbKl27mQykjc7dz7GlgFlIazR3sHs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
