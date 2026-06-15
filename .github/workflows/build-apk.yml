@@ -34,6 +34,21 @@ jobs:
         run: |
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />#' android/app/src/main/AndroidManifest.xml
 
+      - name: Aplicar ícone da Oryx (logo)
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp app-icons/ic_launcher_$d.png            android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp app-icons/ic_launcher_round_$d.png      android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp app-icons/ic_launcher_foreground_$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+          done
+          mkdir -p android/app/src/main/res/values
+          cp app-icons/ic_launcher_background.xml android/app/src/main/res/values/ic_launcher_background.xml
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp app-icons/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp app-icons/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          rm -f android/app/src/main/res/drawable*/ic_launcher_foreground.xml || true
+
       - name: Sincronizar build com o Android
         run: npx cap sync android
 
