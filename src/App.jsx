@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Browser } from "@capacitor/browser";
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ORYX INTERNET — App do Cliente (conectado ao n8n)
+   Oryx TELECOMUNICAÇÕES — App do Cliente (conectado ao n8n)
 
    O app NÃO fala direto com o SGP. Ele chama webhooks do n8n, e o n8n
    guarda o token do SGP e faz as chamadas reais. Assim o token nunca
@@ -22,7 +22,7 @@ import { Browser } from "@capacitor/browser";
    Enquanto os webhooks não existem, cada tela cai em "modo demonstração".
    ────────────────────────────────────────────────────────────────────────── */
 
-const API_BASE = "https://n8n02.proativaia.com.br/webhook";
+const API_BASE = "https://n8n02.proativaia.com.br/webhook"; // TODO Oryx: trocar pela base de webhooks do n8n da Oryx
 
 const api = async (path, body) => {
   const r = await fetch(`${API_BASE}/${path}`, {
@@ -168,7 +168,7 @@ const Spinner = ({label="Carregando..."}) => (
 );
 
 const ThemeBtn = ({theme,onClick}) => (
-  <button onClick={onClick} aria-label="Alternar tema" style={{width:36,height:36,borderRadius:"50%",background:C.surf2,border:`1px solid ${C.b}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.t,fontSize:16,flexShrink:0}}>{theme==="light"?"🌙":"☀️"}</button>
+  <button onClick={onClick} aria-label="Alternar tema" style={{width:36,height:36,borderRadius:"50%",background:C.logoNeg?"rgba(255,255,255,0.14)":"#3D3D5C",border:`1px solid ${C.logoNeg?"rgba(255,255,255,0.22)":"#3D3D5C"}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.logoNeg?"#fff":"#F5C200",fontSize:16,flexShrink:0}}>{theme==="light"?"🌙":"☀️"}</button>
 );
 
 // ─── ICONS ───
@@ -182,14 +182,14 @@ const Ico = {
 };
 
 // ─── DADOS DEMO (fallback quando webhook indisponível) ───
-const DEMO_CLIENTE = {cpf:"00000000000",nome:"João Silva",contratoId:"001234",clienteId:"5678",plano:"Fibra 400 Mega",valor:"89,90",status:"Ativo",vencimento:10,valorAberto:"89,90",titulos:1,pendencia:true};
-const DEMO_CONTA = {cpf:"00000000000",nome:"Oryx Internet Ltda",contratos:[
-  {contratoId:"101",clienteId:"77",plano:"700 MEGA ORYX BÁSICO NOVO",status:"Ativo",vencimento:25,valorAberto:"119,90",titulos:1,pendencia:true,cidade:"Brasília",termoAssinado:true,termoUrl:"",termoPdf:""},
-  {contratoId:"58",clienteId:"77",plano:"700 MEGA ORYX BÁSICO",status:"Ativo",vencimento:10,valorAberto:null,titulos:0,pendencia:false,cidade:"Brasília",termoAssinado:false,termoUrl:"https://oryxinternet.com.br",termoPdf:""},
+const DEMO_CLIENTE = {cpf:"00000000000",nome:"João Silva",contratoId:"001234",clienteId:"5678",plano:"Fibra 500 Mega",valor:"89,90",status:"Ativo",vencimento:10,valorAberto:"89,90",titulos:1,pendencia:true};
+const DEMO_CONTA = {cpf:"00000000000",nome:"Oryx Internet",contratos:[
+  {contratoId:"101",clienteId:"77",plano:"FIBRA 700 MEGA Oryx",status:"Ativo",vencimento:25,valorAberto:"119,90",titulos:1,pendencia:true,cidade:"Sobradinho/DF",termoAssinado:true,termoUrl:"",termoPdf:""},
+  {contratoId:"58",clienteId:"77",plano:"FIBRA 500 MEGA Oryx",status:"Ativo",vencimento:10,valorAberto:null,titulos:0,pendencia:false,cidade:"Sobradinho/DF",termoAssinado:false,termoUrl:"https://oryxinternet.com.br",termoPdf:""},
 ]};
 const DEMO_BOLETOS = [
-  {mes:"Maio 2026",valor:"R$ 89,90",venc:"10/05/2026",status:"vencido",cor:C.r,linha:"00190.00009 01234.560005 61237.100000 2 00000000008990",link:""},
-  {mes:"Junho 2026",valor:"R$ 89,90",venc:"10/06/2026",status:"aberto",cor:C.y,linha:"00190.00009 01234.560005 61237.100000 2 00000000008990",link:""},
+  {mes:"Maio 2026",valor:"R$ 89,90",venc:"10/05/2026",status:"vencido",cor:C.r,linha:"00190.00009 01234.560005 61237.100000 2 00000000008990",pix:"00020126360014br.gov.bcb.pix0114+556130203761520400005303986540589.905802BR5905Oryx6008BRASILIA62070503***6304A1B2",link:""},
+  {mes:"Junho 2026",valor:"R$ 89,90",venc:"10/06/2026",status:"aberto",cor:C.y,linha:"00190.00009 01234.560005 61237.100000 2 00000000008990",pix:"00020126360014br.gov.bcb.pix0114+556130203761520400005303986540589.905802BR5905Oryx6008BRASILIA62070503***6304C3D4",link:""},
   {mes:"Maio 2026",valor:"R$ 89,90",venc:"10/05/2026",status:"pago",cor:C.g,linha:"",link:""},
   {mes:"Abril 2026",valor:"R$ 89,90",venc:"10/04/2026",status:"pago",cor:C.g,linha:"",link:""},
 ];
@@ -218,14 +218,14 @@ const Login = ({onAuth,theme,toggleTheme}) => {
       if(d&&d.ok===false&&d.motivo==="senha_incorreta"){
         setErro("Senha incorreta. Verifique e tente novamente.");
       }else if(d&&d.ok!==false&&Array.isArray(d.contratos)&&d.contratos.length){
-        onAuth({cpf:c,nome:d.nome||"Cliente",contratos:d.contratos});
+        onAuth({cpf:c,senha:senha,nome:d.nome||"Cliente",contratos:d.contratos});
       }else if(d&&d.ok!==false&&(d.contratoId||d.nome)){
-        onAuth({cpf:c,nome:d.nome||"Cliente",contratos:[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia}]});
+        onAuth({cpf:c,senha:senha,nome:d.nome||"Cliente",contratos:[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia}]});
       }else{
         setErro("CPF/CNPJ não encontrado. Verifique e tente novamente.");
       }
     }catch(e){
-      onAuth({...DEMO_CONTA,cpf:c,demo:true});
+      setErro("Sem conexão com o servidor. Verifique sua internet e tente novamente.");
     }
     setLoading(false);
   };
@@ -304,8 +304,8 @@ const Promos=()=>{
   const [idx,setIdx]=useState(0);
   const ref=useRef(null);
   useEffect(()=>{(async()=>{
-    try{ const d=await api("app-promocoes",{}); const arr=(d.promocoes||d.promos||[]); setPromos(arr.length?arr:DEMO_PROMOS); }
-    catch(e){ setPromos(DEMO_PROMOS); }
+    try{ const d=await api("app-promocoes",{}); const arr=(d.promocoes||d.promos||[]); setPromos(arr); }
+    catch(e){ setPromos([]); }
   })();},[]);
   const abrir=async(link)=>{ if(!link)return; try{ await Browser.open({url:link,presentationStyle:"fullscreen"}); }catch(e){ window.open(link,"_blank"); } };
   const onScroll=()=>{ const el=ref.current; if(!el)return; setIdx(Math.round(el.scrollLeft/el.clientWidth)); };
@@ -317,7 +317,7 @@ const Promos=()=>{
           <div key={i} onClick={()=>abrir(p.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 4px 14px rgba(0,0,0,0.18)"}}>
             {p.imagem
               ? <img src={p.imagem} alt={p.titulo||"Promoção"} style={{width:"100%",display:"block",objectFit:"cover"}}/>
-              : <div style={{background:`linear-gradient(135deg,${p.cor||"#3D3D5C"},#1a1a2e)`,padding:18,color:"#fff",position:"relative"}}>
+              : <div style={{background:`linear-gradient(135deg,${p.cor||"#3D3D5C"},#3D3D5C)`,padding:18,color:"#fff",position:"relative"}}>
                   <div style={{position:"absolute",top:-8,right:-8,width:54,height:54,borderRadius:"50%",background:"rgba(245,194,0,0.85)"}}/>
                   <div style={{fontSize:10,color:"#F5C200",fontWeight:800,letterSpacing:1,position:"relative"}}>PROMOÇÃO</div>
                   <div style={{fontSize:18,fontWeight:900,margin:"5px 0",position:"relative"}}>{p.titulo}</div>
@@ -334,6 +334,67 @@ const Promos=()=>{
   );
 };
 
+// ─── STATUS DA CONEXÃO ───
+const StatusConexao = ({cliente}) => {
+  const off = /inativ|bloqu|suspens|cancel|desativ|cortad|pré-?contrato/i.test(String(cliente.status||""));
+  const ok = !off;
+  return (
+    <div style={{background:ok?"rgba(22,163,74,0.10)":"rgba(220,38,38,0.10)",border:`1px solid ${(ok?C.g:C.r)}44`,borderRadius:14,padding:"12px 14px",display:"flex",gap:12,alignItems:"center"}}>
+      <span style={{width:11,height:11,borderRadius:"50%",background:ok?C.g:C.r,flexShrink:0,boxShadow:`0 0 0 4px ${(ok?C.g:C.r)}22`}}/>
+      <div style={{flex:1}}><p style={{color:C.t,fontSize:13,fontWeight:700,margin:"0 0 1px"}}>{ok?"Conexão online":"Conexão offline"}</p><p style={{color:C.s,fontSize:11.5,margin:0}}>{ok?"Seu serviço está ativo.":"Serviço suspenso — regularize para reativar."}</p></div>
+    </div>
+  );
+};
+
+// ─── CONSUMO ───
+const fmtBytes = (n) => {
+  const v=Number(n); if(!v||isNaN(v)) return "0";
+  if(v>=1e9) return (v/1e9).toFixed(2).replace(".",",")+" GB";
+  if(v>=1e6) return (v/1e6).toFixed(1).replace(".",",")+" MB";
+  if(v>=1e3) return (v/1e3).toFixed(0)+" KB";
+  return v+" B";
+};
+const Consumo = ({goBack,cliente}) => {
+  const hoje=new Date();
+  const [ano,setAno]=useState(hoje.getFullYear());
+  const [mes,setMes]=useState(hoje.getMonth()+1);
+  const [data,setData]=useState(null); const [demo,setDemo]=useState(false);
+  useEffect(()=>{ setData(null); (async()=>{
+    try{ const d=await api("app-consumo",{cpf:cliente.cpf,senha:cliente.senha,contrato:cliente.contratoId,ano,mes}); setData(d); setDemo(false); }
+    catch(e){ setData("erro"); }
+  })();},[ano,mes]);
+  const prev=()=>{ let m=mes-1,a=ano; if(m<1){m=12;a--;} setMes(m); setAno(a); };
+  const next=()=>{ const now=new Date(); let m=mes+1,a=ano; if(a>now.getFullYear()||(a===now.getFullYear()&&m>now.getMonth()+1))return; setMes(m); setAno(a); };
+  const lista=(data&&(data.list||data.dias||data.detalhe))||[];
+  return (
+    <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
+      <Back onClick={goBack}/>
+      <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>Consumo de internet</h2>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:"6px 8px"}}>
+        <button onClick={prev} style={{background:"none",border:"none",color:C.t,fontSize:22,cursor:"pointer",padding:"0 12px"}}>‹</button>
+        <span style={{color:C.t,fontSize:14,fontWeight:700}}>{MESES[mes-1]} {ano}</span>
+        <button onClick={next} style={{background:"none",border:"none",color:C.t,fontSize:22,cursor:"pointer",padding:"0 12px"}}>›</button>
+      </div>
+      {data===null ? <Spinner label="Buscando seu consumo..."/> : data==="erro" ? (<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.r,fontSize:14,fontWeight:700,margin:"0 0 4px"}}>Sem conexão</p><p style={{color:C.s,fontSize:13,margin:0}}>Não foi possível carregar o consumo. Verifique sua internet.</p></div>) : (<>
+        <div style={{background:"linear-gradient(135deg,#3D3D5C,#000)",borderRadius:18,padding:"20px 18px",color:"#fff"}}>
+          <p style={{margin:"0 0 4px",fontSize:11,letterSpacing:1,color:"#F5C200",fontWeight:800}}>TOTAL NO MÊS</p>
+          <p style={{margin:0,fontSize:30,fontWeight:900}}>{fmtBytes(data.total!=null?data.total:(data.consumoTotal||0))}</p>
+          <p style={{margin:"6px 0 0",fontSize:12,opacity:.85}}>Plano: {data.plano||cliente.plano}</p>
+        </div>
+        {lista.length>0 ? (
+          <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:"4px 16px"}}>
+            {lista.map((it,i)=>{ const dia=it.data||it.dia||it.dataReferencia||it.referencia||("#"+(i+1)); const val=it.total!=null?it.total:((Number(it.download)||0)+(Number(it.upload)||0)||it.consumo||it.bytes||0); return (
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:i<lista.length-1?`1px solid ${C.line}`:undefined}}><span style={{color:C.s,fontSize:13}}>{dia}</span><span style={{color:C.t,fontSize:13,fontWeight:700}}>{fmtBytes(val)}</span></div>
+            );})}
+          </div>
+        ) : (
+          <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:18,textAlign:"center"}}><p style={{color:C.s,fontSize:13,margin:0}}>Sem detalhamento diário para este mês.</p></div>
+        )}
+      </>)}
+    </div>
+  );
+};
+
 const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
   const inicial=(cliente.nome||"C").charAt(0).toUpperCase();
   const atalhos=[
@@ -341,20 +402,22 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
     {icon:"🔓",label:"Desbloqueio",sub:"De confiança",color:C.o,screen:"desbloqueio"},
     {icon:"✍️",label:"Meu Contrato",sub:"Ver ou assinar",color:C.g,screen:"contrato"},
     {icon:"⚡",label:"Velocidade",sub:"Testar internet",color:C.y,screen:"velocidade"},
+    {icon:"📊",label:"Consumo",sub:"Uso do mês",color:C.p,screen:"consumo"},
   ];
   return (
     <div>
       <div style={{background:C.head,padding:"18px 20px 24px",borderRadius:"0 0 28px 28px",marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <LogoH h={28}/>
-          <div style={{display:"flex",alignItems:"center",gap:10}}><ThemeBtn theme={theme} onClick={toggleTheme}/><button onClick={()=>goTo("perfil")} style={{width:36,height:36,borderRadius:"50%",background:"rgba(245,194,0,0.15)",border:"2px solid rgba(245,194,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center",color:C.y,fontSize:15,fontWeight:700,cursor:"pointer"}}>{inicial}</button></div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><ThemeBtn theme={theme} onClick={toggleTheme}/><button onClick={()=>goTo("perfil")} style={{width:36,height:36,borderRadius:"50%",background:C.logoNeg?"rgba(255,255,255,0.14)":"#3D3D5C",border:"2px solid #F5C200",display:"flex",alignItems:"center",justifyContent:"center",color:"#F5C200",fontSize:15,fontWeight:700,cursor:"pointer"}}>{inicial}</button></div>
         </div>
         <p style={{color:C.s,fontSize:13,margin:"0 0 2px"}}>Olá, {cliente.nome} 👋</p>
-        <h2 style={{color:C.t,fontSize:20,fontWeight:700,margin:"0 0 14px"}}>Bem-vindo de volta!</h2>
-        <div style={{background:"rgba(245,194,0,0.08)",border:"1px solid rgba(245,194,0,0.2)",borderRadius:14,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <h2 style={{color:C.t,fontSize:20,fontWeight:700,margin:"0 0 18px"}}>Bem-vindo de volta!</h2>
+        <div style={{background:C.card,border:`1px solid ${C.line2}`,borderRadius:16,padding:"16px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 8px 22px rgba(0,0,0,0.14)"}}>
           <div><p style={{color:C.s,fontSize:11,margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>Plano ativo</p><p style={{color:C.t,fontSize:15,fontWeight:700,margin:0}}>{cliente.plano}</p>{cliente.vencimento&&<p style={{color:C.s,fontSize:11,margin:"3px 0 0"}}>Vencimento dia {cliente.vencimento}</p>}{varios&&<p onClick={onTrocar} style={{color:C.yd,fontSize:11,fontWeight:700,margin:"6px 0 0",cursor:"pointer"}}>↺ Trocar contrato</p>}</div>
-          <div style={{background:"rgba(72,199,116,0.15)",border:"1px solid rgba(72,199,116,0.3)",borderRadius:20,padding:"5px 12px",color:C.g,fontSize:12,fontWeight:700}}>✓ {cliente.status||"Ativo"}</div>
+          {(()=>{const st=String(cliente.status||"Ativo");const ativo=!/(inativ|bloqu|suspens|cancel|desativ|d\u00e9bito|debito|atras)/i.test(st);const cor=ativo?C.g:C.r;return (<div style={{background:`${cor}26`,border:`1px solid ${cor}55`,borderRadius:20,padding:"5px 12px",color:cor,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{ativo?"\u2713":"\u26a0"} {st}</div>);})()}
         </div>
+        <div style={{marginTop:10}}><StatusConexao cliente={cliente}/></div>
       </div>
       <div style={{padding:"0 16px 20px",display:"flex",flexDirection:"column",gap:14}}>
         <Promos/>
@@ -395,8 +458,8 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
 };
 
 // ─── BOLETO ───
-const Boleto = ({goBack,cliente}) => {
-  const [sel,setSel]=useState(null); const [lista,setLista]=useState(null); const [demo,setDemo]=useState(false); const [copiado,setCopiado]=useState(false);
+const Boleto = ({goBack,goTo,cliente}) => {
+  const [sel,setSel]=useState(null); const [lista,setLista]=useState(null); const [demo,setDemo]=useState(false); const [copiado,setCopiado]=useState(false); const [copiadoPix,setCopiadoPix]=useState(false);
   useEffect(()=>{(async()=>{
     try{
       const d=await api("app-boletos",{cpf:cliente.cpf,contrato:cliente.contratoId});
@@ -415,14 +478,17 @@ const Boleto = ({goBack,cliente}) => {
           status,
           cor:pago?C.g:(vencido?C.r:C.y),
           linha:b.linha||b.linhaDigitavel||b.codigo_barras||"",
+          pix:b.pix||b.codigoPix||b.codigo_pix||b.pixCopiaECola||b.pix_copia_cola||b.qrcode||b.qr_code||b.emv||b.brcode||"",
           link:b.link||b.link_cobranca||"",
         };
       });
       setLista(arr);
-    }catch(e){ setLista(DEMO_BOLETOS); setDemo(true); }
+    }catch(e){ setLista("erro"); }
   })();},[]);
 
   if(lista===null) return <div style={{padding:"20px 16px"}}><Back onClick={goBack}/><Spinner label="Buscando seus boletos..."/></div>;
+
+  if(lista==="erro") return <div style={{padding:"20px 16px",display:"flex",flexDirection:"column",gap:14}}><Back onClick={goBack}/><h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>2ª Via de Boleto</h2><div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.r,fontSize:14,fontWeight:700,margin:"0 0 4px"}}>Sem conexão</p><p style={{color:C.s,fontSize:13,margin:0}}>Não foi possível carregar seus boletos. Verifique sua internet.</p></div></div>;
 
   if(sel!==null){const b=lista[sel];return(
     <div style={{padding:"20px 16px",display:"flex",flexDirection:"column",gap:14}}>
@@ -438,8 +504,13 @@ const Boleto = ({goBack,cliente}) => {
           <p style={{color:C.s,fontSize:11,margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>Código de barras</p>
           <p style={{color:C.t,fontSize:11,fontFamily:"monospace",margin:0,letterSpacing:1,wordBreak:"break-all"}}>{b.linha}</p>
         </div>}
-        {b.linha&&<Btn label={copiado?"✓ Copiado!":"📋 Copiar código"} onClick={()=>{navigator.clipboard?.writeText(b.linha);setCopiado(true);setTimeout(()=>setCopiado(false),2000);}} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
-        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={()=>window.open(b.link,"_blank")}/>}
+        {b.linha&&<Btn label={copiado?"✓ Copiado!":"📋 Copiar código de barras"} onClick={()=>{navigator.clipboard?.writeText(b.linha);setCopiado(true);setTimeout(()=>setCopiado(false),2000);}} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
+        {b.pix&&<div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:14}}>
+          <p style={{color:C.s,fontSize:11,margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>Pix copia e cola</p>
+          <p style={{color:C.t,fontSize:11,fontFamily:"monospace",margin:0,letterSpacing:0.5,wordBreak:"break-all"}}>{b.pix}</p>
+        </div>}
+        {b.pix&&<Btn label={copiadoPix?"✓ Pix copiado!":"📲 Copiar Pix (copia e cola)"} onClick={()=>{navigator.clipboard?.writeText(b.pix);setCopiadoPix(true);setTimeout(()=>setCopiadoPix(false),2000);}}/>}
+        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={()=>window.open(b.link,"_blank")} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
       </>}
       {b.status==="pago"&&<div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:12,padding:14,textAlign:"center"}}><p style={{color:C.g,fontSize:13,fontWeight:600,margin:0}}>✓ Boleto quitado</p></div>}
     </div>
@@ -450,7 +521,7 @@ const Boleto = ({goBack,cliente}) => {
       <Back onClick={goBack}/>
       <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>2ª Via de Boleto</h2>
       <p style={{color:C.s,fontSize:13,margin:0}}>Contrato #{cliente.contratoId} — {cliente.nome}</p>
-      {demo&&<DemoChip/>}
+      <button onClick={()=>goTo("notas")} style={{alignSelf:"flex-start",background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:"10px 14px",color:C.t,fontSize:13,fontWeight:700,cursor:"pointer"}}>🧾 Minhas notas fiscais ›</button>
       {lista.length===0&&<div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.g,fontSize:15,fontWeight:700,margin:"0 0 4px"}}>✓ Conta em dia!</p><p style={{color:C.s,fontSize:13,margin:0}}>Nenhum boleto em aberto.</p></div>}
       {lista.map((b,i)=>(
         <div key={i} onClick={()=>setSel(i)} style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:16,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
@@ -473,7 +544,7 @@ const Velocidade=({goBack})=>{
         <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>⚡</div>
         <p style={{color:C.t,fontSize:15,fontWeight:700,margin:"6px 0 0"}}>Teste rápido (download)</p>
         <p style={{color:C.s,fontSize:12,margin:0,textAlign:"center",lineHeight:1.5}}>Mede a velocidade de download da sua internet automaticamente. Rápido e sem complicação.</p>
-        <button onClick={()=>abrir("https://fast.com")} style={{marginTop:10,width:"100%",background:C.y,color:"#1a1a2e",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Iniciar teste rápido →</button>
+        <button onClick={()=>abrir("https://fast.com")} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Iniciar teste rápido →</button>
       </div>
 
       <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
@@ -534,15 +605,76 @@ const Suporte=({goBack,goTo})=>{
       ))}
       <div style={{background:"rgba(245,194,0,0.06)",border:"1px solid rgba(245,194,0,0.15)",borderRadius:16,padding:16,textAlign:"center"}}>
         <p style={{color:C.s,fontSize:12,margin:"0 0 6px"}}>Horário de atendimento</p>
-        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>Seg–Sex: 8h–19h • Sáb: 9h–16h</p>
-        <p style={{color:C.s,fontSize:11,margin:0,lineHeight:1.5}}>📍 SCS Quadra 07, Bloco A, Ed. Pátio Brasil, sala 1228 — Asa Sul, Brasília/DF</p>
+        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>Seg–Sex: 9h–18h • Sáb: 9h–17h • Dom: fechado</p>
+        <p style={{color:C.s,fontSize:11.5,margin:"0 0 12px",lineHeight:1.5}}>📍 Cond. Novo, Setor de Mansões Mod. 01 Lote 24, Loja 02 — Sobradinho/DF • CEP 73270-730</p>
+        <button onClick={()=>abrir("https://www.google.com/maps/search/?api=1&query=Ed.%20P%C3%A1tio%20Brasil%20SCS%20Quadra%207%20Bras%C3%ADlia%20DF")} style={{width:"100%",background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:13,fontSize:14,fontWeight:800,cursor:"pointer"}}>📍 Como chegar (abrir no mapa)</button>
       </div>
     </div>
   );
 };
 
 // ─── PERFIL ───
-const Perfil=({goBack,goLogin,cliente})=>(
+const AtualizarCadastro = ({goBack,cliente}) => {
+  const [tel,setTel]=useState(""); const [email,setEmail]=useState(""); const [foc,setFoc]=useState("");
+  const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
+  const enviar=()=>{
+    const msg="Olá! Sou "+cliente.nome+" (contrato #"+cliente.contratoId+"). Quero atualizar meu cadastro:"+(tel?"\nTelefone: "+tel:"")+(email?"\nE-mail: "+email:"");
+    abrir("https://wa.me/556130203761?text="+encodeURIComponent(msg));
+  };
+  const campo=(label,val,setVal,ph,key,type)=>(
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase"}}>{label}</label>
+      <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${foc===key?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:foc===key?"rgba(245,194,0,0.05)":C.surf}}>
+        <input style={{flex:1,background:"none",border:"none",outline:"none",color:C.t,fontSize:16,padding:"13px 0",fontFamily:"inherit"}} type={type||"text"} placeholder={ph} value={val} onChange={e=>setVal(e.target.value)} onFocus={()=>setFoc(key)} onBlur={()=>setFoc("")}/>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:16}}>
+      <Back onClick={goBack}/>
+      <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>Atualizar cadastro</h2>
+      <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Informe seu novo telefone e/ou e-mail. Sua solicitação será enviada para a equipe da Oryx pelo WhatsApp.</p>
+      {campo("Telefone / WhatsApp",tel,setTel,"(61) 9 9999-9999","tel","tel")}
+      {campo("E-mail",email,setEmail,"voce@email.com","email","email")}
+      <Btn label="Enviar atualização" onClick={enviar} disabled={!tel.trim()&&!email.trim()}/>
+    </div>
+  );
+};
+
+const Notas = ({goBack,cliente}) => {
+  const [lista,setLista]=useState(null); const [demo,setDemo]=useState(false);
+  const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
+  const statusLabel=(st)=>{ const m={"1":"Autorizada","3":"Em digitação","5":"Rejeitada","8":"Cancelada","9":"Importada","10":"Aguardando","11":"Substituída"}; return m[String(st)]||String(st||""); };
+  useEffect(()=>{(async()=>{
+    try{
+      const d=await api("app-notas",{cpf:cliente.cpf,contrato:cliente.contratoId});
+      const arr=(d.notas||d.results||d.list||[]).map(n=>({numero:n.numero||n.id, id:n.id, data:n.data_emissao||n.data||"", status:n.status, serie:n.serie||""}));
+      setLista(arr); setDemo(false);
+    }catch(e){ setLista("erro"); }
+  })();},[]);
+  const baixar=(id)=>{ abrir(API_BASE+"/app-nota-pdf?id="+encodeURIComponent(id)+"&contrato="+encodeURIComponent(cliente.contratoId)); };
+  return (
+    <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
+      <Back onClick={goBack}/>
+      <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>Notas fiscais</h2>
+      <p style={{color:C.s,fontSize:13,margin:0}}>Notas emitidas no seu contrato #{cliente.contratoId}.</p>
+      {lista===null ? <Spinner label="Buscando suas notas..."/> : lista==="erro" ? (
+        <div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.r,fontSize:14,fontWeight:700,margin:"0 0 4px"}}>Sem conexão</p><p style={{color:C.s,fontSize:13,margin:0}}>Não foi possível carregar suas notas. Verifique sua internet.</p></div>
+      ) : (
+        lista.length===0 ? (
+          <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.s,fontSize:14,margin:0}}>Nenhuma nota fiscal emitida ainda.</p></div>
+        ) : lista.map((n,i)=>(
+          <div key={i} style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 4px"}}>NFCom Nº {n.numero}{n.serie?(" • Série "+n.serie):""}</p><p style={{color:C.s,fontSize:12,margin:"0 0 8px"}}>Emitida em {fmtData(n.data)}</p><Badge label={statusLabel(n.status)} color={String(n.status)==="1"?C.g:C.o}/></div>
+            {String(n.status)==="1" ? <button onClick={()=>baixar(n.id)} style={{background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>Baixar PDF</button> : <span style={{color:C.s,fontSize:11.5,whiteSpace:"nowrap"}}>PDF indisponível</span>}
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+const Perfil=({goBack,goLogin,goTo,cliente})=>(
   <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
     <Back onClick={goBack}/>
     <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -554,7 +686,11 @@ const Perfil=({goBack,goLogin,cliente})=>(
         <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:i<a.length-1?`1px solid ${C.line}`:undefined}}><span style={{color:C.s,fontSize:13}}>{k}</span><span style={{color:C.t,fontSize:13,fontWeight:600}}>{v}</span></div>
       ))}
     </div>
-    <Btn label="✏️ Editar dados" onClick={()=>{}} s={{background:C.line,color:C.t,boxShadow:"none",border:`1px solid ${C.line2}`}}/>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {[["✏️ Atualizar cadastro",()=>goTo("atualizar")]].map(([lbl,fn],i)=>(
+        <button key={i} onClick={fn} style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:14,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.t,fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"left"}}>{lbl}<span style={{color:C.s}}>›</span></button>
+      ))}
+    </div>
     <button onClick={goLogin} style={{background:"none",border:"1px solid rgba(241,85,85,0.3)",borderRadius:14,padding:14,color:C.r,fontSize:14,fontWeight:600,cursor:"pointer"}}>Sair da conta</button>
   </div>
 );
@@ -570,7 +706,7 @@ const Desbloqueio = ({goBack,cliente}) => {
       const d=await api("app-desbloqueio",{contrato:cliente.contratoId});
       setRes(d); setDemo(false);
     }catch(e){
-      setRes({ok:true,mensagem:"Conexão liberada por confiança.",liberado_dias:2,data_promessa:""}); setDemo(true);
+      setRes({ok:false,mensagem:"Não foi possível concluir. Verifique sua conexão e tente novamente."});
     }
     setStep("resultado");
   };
@@ -591,7 +727,6 @@ const Desbloqueio = ({goBack,cliente}) => {
           <p style={{color:C.t,fontSize:13,margin:0,lineHeight:1.6}}>⚠️ O desbloqueio de confiança vale por <strong>{res?.liberado_dias||2} dias</strong>. Regularize seu pagamento para evitar novo bloqueio.</p>
           {res?.data_promessa&&<p style={{color:C.s,fontSize:12,margin:0}}>📅 Promessa de pagamento até: <strong style={{color:C.t}}>{res.data_promessa}</strong></p>}
         </div>}
-        {demo&&<DemoChip/>}
         <Btn label="Voltar ao início" onClick={goBack} s={{background:"rgba(255,255,255,0.07)",color:C.t,boxShadow:"none",border:`1px solid rgba(255,255,255,0.1)`}}/>
       </div>
     );
@@ -648,7 +783,7 @@ const Contrato = ({goBack,cliente}) => {
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
           {url ? (
-            <button onClick={()=>abrir(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#1a1a2e",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
+            <button onClick={()=>abrir(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
           ) : (
             <p style={{color:C.s,fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>O link de assinatura ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
           )}
@@ -661,7 +796,7 @@ const Contrato = ({goBack,cliente}) => {
 
 // ─── MEUS APPS ───
 const MeusApps=({goBack})=>{
-  const PORTAL="https://www.portaldoassinante.com/oryx";
+  const PORTAL="https://oryxinternet.com.br";
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
   return(
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:16}}>
@@ -672,7 +807,7 @@ const MeusApps=({goBack})=>{
         <div style={{width:64,height:64,borderRadius:18,background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📺</div>
         <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"6px 0 0"}}>Portal do Assinante</p>
         <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Acesse seus aplicativos de streaming, serviços e benefícios inclusos no seu plano Oryx.</p>
-        <button onClick={()=>abrir(PORTAL)} style={{marginTop:10,width:"100%",background:C.y,color:"#1a1a2e",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Abrir Portal do Assinante →</button>
+        <button onClick={()=>abrir(PORTAL)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Abrir Portal do Assinante →</button>
       </div>
 
       <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
@@ -685,9 +820,9 @@ const MeusApps=({goBack})=>{
 
 // ─── SUPORTE ───
 
-const TABS=["home","boleto","velocidade","apps","suporte"];
-const TLABELS={home:"Início",boleto:"Boleto",velocidade:"Velocidade",apps:"Meus Apps",suporte:"Suporte"};
-const TICONS={home:Ico.home,boleto:Ico.boleto,velocidade:Ico.velocidade,apps:Ico.apps,suporte:Ico.suporte};
+const TABS=["home","boleto","velocidade","suporte"];
+const TLABELS={home:"Início",boleto:"Boleto",velocidade:"Velocidade",suporte:"Suporte"};
+const TICONS={home:Ico.home,boleto:Ico.boleto,velocidade:Ico.velocidade,suporte:Ico.suporte};
 
 // ─── APP ───
 // ─── NOTIFICAÇÕES PUSH (Firebase) ───
@@ -717,7 +852,7 @@ export default function App(){
   const [tab,setTab]=useState("home");
   const [cliente,setCliente]=useState(null);
   const [conta,setConta]=useState(null);
-  const mkCliente=(a,ct)=>({cpf:a.cpf,nome:a.nome,contratoId:ct.contratoId,clienteId:ct.clienteId,plano:ct.plano||"Internet",status:ct.status||"Ativo",vencimento:ct.vencimento||null,valorAberto:ct.valorAberto||null,titulos:ct.titulos||0,pendencia:!!ct.pendencia,termoAssinado:!!ct.termoAssinado,termoUrl:ct.termoUrl||"",termoPdf:ct.termoPdf||""});
+  const mkCliente=(a,ct)=>({cpf:a.cpf,senha:a.senha||"",demo:!!a.demo,nome:a.nome,contratoId:ct.contratoId,clienteId:ct.clienteId,plano:ct.plano||"Internet",status:ct.status||"Ativo",vencimento:ct.vencimento||null,valorAberto:ct.valorAberto||null,titulos:ct.titulos||0,pendencia:!!ct.pendencia,termoAssinado:!!ct.termoAssinado,termoUrl:ct.termoUrl||"",termoPdf:ct.termoPdf||""});
   const onAuth=(a)=>{ setConta(a); if(a.contratos.length===1){ setCliente(mkCliente(a,a.contratos[0])); setScreen("main"); salvarSessao(a,a.contratos[0].contratoId); registrarPush(a.cpf,a.contratos[0].contratoId); } else { setScreen("selecao"); salvarSessao(a,null); } };
   const escolher=(ct)=>{ setCliente(mkCliente(conta,ct)); setScreen("main"); salvarSessao(conta,ct.contratoId); registrarPush(conta.cpf,ct.contratoId); };
   const [theme,setTheme]=useState("light");
@@ -740,13 +875,15 @@ export default function App(){
 
   const screenMap={
     home:<Home goTo={goTo} cliente={cliente} theme={theme} toggleTheme={toggleTheme} varios={conta&&conta.contratos.length>1} onTrocar={()=>setScreen("selecao")}/>,
-    boleto:<Boleto goBack={goBack} cliente={cliente}/>,
-    apps:<MeusApps goBack={goBack}/>,
+    boleto:<Boleto goBack={goBack} goTo={goTo} cliente={cliente}/>,
     velocidade:<Velocidade goBack={goBack}/>,
+    consumo:<Consumo goBack={goBack} cliente={cliente}/>,
     suporte:<Suporte goBack={goBack} goTo={goTo}/>,
     desbloqueio:<Desbloqueio goBack={goBack} cliente={cliente}/>,
     contrato:<Contrato goBack={goBack} cliente={cliente}/>,
-    perfil:<Perfil goBack={goBack} goLogin={goLogin} cliente={cliente}/>,
+    atualizar:<AtualizarCadastro goBack={goBack} cliente={cliente}/>,
+    notas:<Notas goBack={goBack} cliente={cliente}/>,
+    perfil:<Perfil goBack={goBack} goLogin={goLogin} goTo={goTo} cliente={cliente}/>,
   };
 
   return(

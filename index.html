@@ -3,14 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#080810" />
+    <meta name="theme-color" content="#F5C200" />
     <title>Oryx Internet</title>
     <style>
-      html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #080810; }
+      html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #fdf6da; }
       * { -webkit-tap-highlight-color: transparent; }
+      #app-splash { position: fixed; inset: 0; z-index: 9999; background: #fdf6da; display: flex; align-items: center; justify-content: center; transition: opacity .45s ease; }
     </style>
   </head>
   <body>
+    <div id="app-splash">
+      <svg width="220" viewBox="0 0 200 232" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="gs"><circle cx="100" cy="70" r="44"/></clipPath><clipPath id="os"><circle cx="100" cy="70" r="60"/></clipPath></defs>
+        <circle cx="100" cy="70" r="60" fill="#F5C200"/>
+        <g clip-path="url(#os)"><ellipse cx="116" cy="92" rx="46" ry="36" fill="#E5A800" opacity="0.45"/></g>
+        <circle cx="100" cy="70" r="44" fill="#3D3D5C"/>
+        <g clip-path="url(#gs)" transform="rotate(-18 100 70)" stroke="#F5C200" stroke-width="2.2" fill="none" stroke-linecap="round">
+          <ellipse cx="100" cy="70" rx="14" ry="44"/><ellipse cx="100" cy="70" rx="30" ry="44"/><line x1="100" y1="26" x2="100" y2="114"/>
+          <ellipse cx="100" cy="70" rx="44" ry="14"/><ellipse cx="100" cy="70" rx="44" ry="30"/><line x1="56" y1="70" x2="144" y2="70"/>
+        </g>
+        <circle cx="100" cy="70" r="43" fill="none" stroke="#F5C200" stroke-width="2.4"/>
+        <g transform="rotate(-18 100 70)" fill="#F5C200">
+          <circle cx="100" cy="26" r="4.5"/><circle cx="100" cy="114" r="4.5"/><circle cx="56" cy="70" r="4.5"/><circle cx="144" cy="70" r="4.5"/><circle cx="72" cy="46" r="3"/><circle cx="128" cy="94" r="3"/>
+        </g>
+        <text x="100" y="178" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="44" fill="#16161d">Oryx</text>
+        <text x="100" y="204" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="12" letter-spacing="1.5" fill="#2b2b3d">MUITO MAIS RÁPIDA!</text>
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
