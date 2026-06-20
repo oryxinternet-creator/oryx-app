@@ -108,7 +108,7 @@ const LogoV = ({h=90}) => {
         <circle cx="56" cy="70" r="4.5"/><circle cx="144" cy="70" r="4.5"/>
         <circle cx="72" cy="46" r="3"/><circle cx="128" cy="94" r="3"/>
       </g>
-      <text x="100" y="178" textAnchor="middle" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="44" fill={word}>Oryx</text>
+      <text x="100" y="178" textAnchor="middle" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="44" fill={word}>ORYX</text>
       <text x="100" y="204" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="12" letterSpacing="1.5"><tspan fill={muito}>MUITO MAIS </tspan><tspan fill={rapida}>RÁPIDA!</tspan></text>
     </svg>
   );
@@ -135,7 +135,7 @@ const LogoH = ({h=28}) => {
         <circle cx="15" cy="46" r="3.2"/><circle cx="77" cy="46" r="3.2"/>
         <circle cx="64" cy="30" r="2.2"/><circle cx="28" cy="62" r="2.2"/>
       </g>
-      <text x="100" y="56" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="46" fill={word}>Oryx</text>
+      <text x="100" y="56" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="46" fill={word}>ORYX</text>
       <text x="102" y="78" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="12" letterSpacing="1"><tspan fill={muito}>MUITO MAIS </tspan><tspan fill={rapida}>RÁPIDA!</tspan></text>
     </svg>
   );
@@ -461,6 +461,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
     {emoji:"✍️",label:"Contrato",screen:"contrato"},
     {emoji:"⚡",label:"Velocidade",screen:"velocidade"},
     {emoji:"📺",label:"Meus Apps",screen:"apps"},
+    {emoji:"💬",label:"Suporte",screen:"suporte"},
   ];
   const claroSec=C.logoNeg?"rgba(255,255,255,0.72)":"rgba(43,43,61,0.7)";
   const titColor=C.logoNeg?"#ffffff":"#2b2b3d";
@@ -937,7 +938,7 @@ export default function App(){
         {screen!=="login"&&screen!=="selecao"&&cliente&&screenMap[isMain?tab:screen]}
       </div>
       {/* barra de abas fixa no rodapé, respeitando o gesto do Android */}
-      {screen!=="login"&&screen!=="selecao"&&(
+      {screen!=="login"&&screen!=="selecao"&&!(isMain&&tab==="home")&&(
         <div style={{display:"flex",background:C.nav,borderTop:`1px solid ${C.line}`,padding:"8px 0 calc(4px + env(safe-area-inset-bottom))",flexShrink:0}}>
           {TABS.map(t=>(
             <button key={t} onClick={()=>{setTab(t);setScreen("main");}} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"6px 0",color:tab===t&&isMain?C.y:C.t3,transition:"color 0.2s"}}>

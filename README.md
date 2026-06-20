@@ -1,6 +1,6 @@
-# Oryx Internet — App do Cliente
+# DFNET Telecomunicações — App do Cliente
 
-App do cliente da Oryx Internet (login por CPF, 2ª via de boleto, ordens de serviço,
+App do cliente da DFNET Telecomunicações (login por CPF, 2ª via de boleto, ordens de serviço,
 desbloqueio de confiança e assinatura de contrato). Feito em React + Vite, empacotado
 em APK Android com Capacitor e buildado na nuvem pelo GitHub Actions.
 
@@ -15,7 +15,7 @@ Você NÃO precisa instalar nada na sua máquina. O APK é gerado na nuvem pelo 
 
 ### 1. Criar o repositório no GitHub
 - Acesse https://github.com/new
-- Nome: `oryx-app` (ou o que preferir)
+- Nome: `dfnet-app` (ou o que preferir)
 - Deixe **público** ou **privado** (tanto faz para o build funcionar)
 - NÃO marque "Add a README" (já temos um)
 - Clique em **Create repository**
@@ -36,7 +36,7 @@ A forma mais simples, sem usar terminal:
 
 ### 4. Baixar o APK
 - Clique na execução que terminou (✓ verde)
-- Lá embaixo, em **Artifacts**, baixe o `oryx-app-apk`
+- Lá embaixo, em **Artifacts**, baixe o `dfnet-app-apk`
 - Dentro do .zip está o `app-debug.apk`
 
 ### 5. Instalar no celular
@@ -59,13 +59,13 @@ Abre em http://localhost:5173
 
 ## Configurações importantes
 
-- **App ID (package Android):** `com.oryxinternet.cliente` — em `capacitor.config.json`
+- **App ID (package Android):** `com.dfnet.cliente` — em `capacitor.config.json`
 - **URL dos webhooks:** constante `API_BASE` no topo de `src/App.jsx`
-  (hoje: `https://n8n02.proativaia.com.br/webhook`)
+  (⚠️ PENDENTE DFNET: trocar pela base de webhooks do n8n da DFNET — ver CONFIGURAR-DFNET.md)
 - O APK gerado é **debug** (instalável, mas não assinado para a Play Store).
   Para publicar na Play Store é preciso gerar um `.aab` assinado — me avise quando chegar nessa fase.
 
 ## Próximos passos sugeridos
-- Ícone e splash screen personalizados (logo da Oryx)
+- Ícone e splash screen personalizados (logo da DFNET)
 - Versão assinada (.aab) para a Play Store
 - Ligar o `app-os-abrir` no endpoint real de criar OS do SGP
