@@ -552,7 +552,7 @@ const Boleto = ({goBack,goTo,cliente}) => {
           <p style={{color:C.t,fontSize:11,fontFamily:"monospace",margin:0,letterSpacing:0.5,wordBreak:"break-all"}}>{b.pix}</p>
         </div>}
         {b.pix&&<Btn label={copiadoPix?"✓ Pix copiado!":"📲 Copiar Pix (copia e cola)"} onClick={()=>{navigator.clipboard?.writeText(b.pix);setCopiadoPix(true);setTimeout(()=>setCopiadoPix(false),2000);}}/>}
-        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={()=>window.open(b.link,"_blank")} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
+        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={async()=>{try{await Browser.open({url:b.link,presentationStyle:"fullscreen"});}catch(e){window.open(b.link,"_blank");}}} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
       </>}
       {b.status==="pago"&&<div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:12,padding:14,textAlign:"center"}}><p style={{color:C.g,fontSize:13,fontWeight:600,margin:0}}>✓ Boleto quitado</p></div>}
     </div>
@@ -577,16 +577,75 @@ const Boleto = ({goBack,goTo,cliente}) => {
 
 // ─── SUPORTE ───
 const Velocidade=({goBack})=>{
-  const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
+  const [fase,setFase]=useState("idle");
+  const [mbps,setMbps]=useState(0);
+  const [res,setRes]=useState({ping:null,down:null,up:null});
+  const testando=fase==="ping"||fase==="download"||fase==="upload";
+
+  const medirPing=async()=>{
+    let best=Infinity;
+    for(let i=0;i<5;i++){ const t=performance.now(); try{ await fetch("https://speed.cloudflare.com/__down?bytes=0&r="+Math.random(),{cache:"no-store"}); }catch(e){} const d=performance.now()-t; if(d<best)best=d; }
+    return best===Infinity?null:Math.round(best);
+  };
+  const medirDownload=async()=>{
+    const bytes=30000000; const t0=performance.now(); let loaded=0;
+    const resp=await fetch("https://speed.cloudflare.com/__down?bytes="+bytes+"&r="+Math.random(),{cache:"no-store"});
+    if(resp.body&&resp.body.getReader){
+      const reader=resp.body.getReader();
+      while(true){ const r=await reader.read(); if(r.done)break; loaded+=r.value.length; const sec=(performance.now()-t0)/1000; if(sec>0)setMbps((loaded*8)/sec/1e6); }
+    } else { const buf=await resp.arrayBuffer(); loaded=buf.byteLength; }
+    const sec=(performance.now()-t0)/1000; return sec>0?(loaded*8)/sec/1e6:0;
+  };
+  const medirUpload=async()=>{
+    const bytes=10000000; const data=new Uint8Array(bytes); const t0=performance.now();
+    try{ await fetch("https://speed.cloudflare.com/__up",{method:"POST",body:data,cache:"no-store"}); }catch(e){ return null; }
+    const sec=(performance.now()-t0)/1000; return sec>0?(bytes*8)/sec/1e6:null;
+  };
+  const iniciar=async()=>{
+    if(testando)return;
+    setRes({ping:null,down:null,up:null}); setMbps(0);
+    try{
+      setFase("ping"); const ping=await medirPing(); setRes(r=>({...r,ping}));
+      setFase("download"); const down=await medirDownload(); setRes(r=>({...r,down})); setMbps(down);
+      setFase("upload"); setMbps(0); const up=await medirUpload(); setRes(r=>({...r,up}));
+      setFase("done");
+    }catch(e){ setFase("erro"); }
+  };
+
+  const fmt=(v)=>v==null?"—":(v>=100?String(Math.round(v)):v.toFixed(1));
+  const ringMax=Math.max(50,(res.down||mbps||50));
+  const pct=Math.min((mbps||0)/ringMax,1);
+  const R=86, CIRC=2*Math.PI*R;
+  const faseLabel={idle:"Toque para iniciar",ping:"Medindo latência…",download:"Testando download…",upload:"Testando upload…",done:"Teste concluído",erro:"Falha no teste — tente de novo"}[fase];
+  const centro = fase==="upload" ? fmt(res.up) : (fase==="done" ? fmt(res.down) : fmt(mbps||(fase==="idle"?null:0)));
+
   return (
     <div style={{padding:"16px 16px 28px",display:"flex",flexDirection:"column",gap:16}}>
-      <div><h2 style={{color:C.t,fontSize:20,fontWeight:800,margin:0}}>Teste de Velocidade</h2><p style={{color:C.s,fontSize:13,margin:"4px 0 0"}}>Meça a velocidade real da sua conexão</p></div>
+      <div><h2 style={{color:C.t,fontSize:20,fontWeight:800,margin:0}}>Teste de Velocidade</h2><p style={{color:C.s,fontSize:13,margin:"4px 0 0"}}>Medição feita dentro do app, sem abrir o navegador</p></div>
 
-      <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"22px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-        <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>⚡</div>
-        <p style={{color:C.t,fontSize:15,fontWeight:700,margin:"6px 0 0"}}>Teste rápido (download)</p>
-        <p style={{color:C.s,fontSize:12,margin:0,textAlign:"center",lineHeight:1.5}}>Mede a velocidade de download da sua internet automaticamente. Rápido e sem complicação.</p>
-        <button onClick={()=>abrir("https://fast.com")} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Iniciar teste rápido →</button>
+      <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"24px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
+        <div style={{position:"relative",width:200,height:200}}>
+          <svg width="200" height="200" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="86" fill="none" stroke={C.line2} strokeWidth="14"/>
+            <circle cx="100" cy="100" r="86" fill="none" stroke={C.y} strokeWidth="14" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC*(1-pct)} transform="rotate(-90 100 100)" style={{transition:"stroke-dashoffset 0.25s"}}/>
+          </svg>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+            <span style={{color:C.t,fontSize:42,fontWeight:900,lineHeight:1}}>{centro}</span>
+            <span style={{color:C.s,fontSize:13,fontWeight:700,marginTop:2}}>Mbps</span>
+          </div>
+        </div>
+        <p style={{color:testando?C.y:C.s,fontSize:13,fontWeight:700,margin:0}}>{faseLabel}</p>
+
+        <div style={{display:"flex",gap:10,width:"100%"}}>
+          {[["Ping",res.ping==null?"—":res.ping+" ms"],["Download",res.down==null?"—":fmt(res.down)+" Mbps"],["Upload",res.up==null?"—":fmt(res.up)+" Mbps"]].map(([k,v],i)=>(
+            <div key={i} style={{flex:1,background:C.card,border:`1px solid ${C.line}`,borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
+              <p style={{color:C.s,fontSize:10.5,margin:"0 0 3px",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{k}</p>
+              <p style={{color:C.t,fontSize:13,fontWeight:800,margin:0}}>{v}</p>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={iniciar} disabled={testando} style={{width:"100%",background:testando?C.line3:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:800,cursor:testando?"default":"pointer",opacity:testando?0.7:1}}>{testando?"Testando…":((fase==="done"||fase==="erro")?"Testar novamente":"Iniciar teste →")}</button>
       </div>
 
       <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
@@ -647,9 +706,8 @@ const Suporte=({goBack,goTo})=>{
       ))}
       <div style={{background:"rgba(245,194,0,0.06)",border:"1px solid rgba(245,194,0,0.15)",borderRadius:16,padding:16,textAlign:"center"}}>
         <p style={{color:C.s,fontSize:12,margin:"0 0 6px"}}>Horário de atendimento</p>
-        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>Seg–Sex: 9h–18h • Sáb: 9h–17h • Dom: fechado</p>
-        <p style={{color:C.s,fontSize:11.5,margin:"0 0 12px",lineHeight:1.5}}>📍 Cond. Novo, Setor de Mansões Mod. 01 Lote 24, Loja 02 — Sobradinho/DF • CEP 73270-730</p>
-        <button onClick={()=>abrir("https://www.google.com/maps/search/?api=1&query=Ed.%20P%C3%A1tio%20Brasil%20SCS%20Quadra%207%20Bras%C3%ADlia%20DF")} style={{width:"100%",background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:13,fontSize:14,fontWeight:800,cursor:"pointer"}}>📍 Como chegar (abrir no mapa)</button>
+        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>Seg–Sex: 8h–19h • Sáb: 9h–16h</p>
+        <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.5}}>📍 SCS Quadra 07, Bloco A, Ed. Pátio Brasil, sala 1228 — Asa Sul, Brasília/DF</p>
       </div>
     </div>
   );
@@ -795,12 +853,147 @@ const Desbloqueio = ({goBack,cliente}) => {
 // ─── CONTRATO (assinatura via termo de aceite) ───
 
 // ─── CONTRATO (SGPsign) ───
+const PdfViewer=({url,title,onClose})=>{
+  const [pages,setPages]=useState([]);
+  const [estado,setEstado]=useState("load");
+  useEffect(()=>{ let cancel=false; (async()=>{
+    try{
+      const src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs";
+      const pdfjs=await import(/* @vite-ignore */ src);
+      pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+      const doc=await pdfjs.getDocument({url}).promise;
+      const imgs=[]; const scale=Math.min(2.2,(window.devicePixelRatio||1)*1.4);
+      for(let n=1;n<=doc.numPages;n++){
+        if(cancel)return;
+        const page=await doc.getPage(n);
+        const vp=page.getViewport({scale});
+        const canvas=document.createElement("canvas");
+        canvas.width=vp.width; canvas.height=vp.height;
+        await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+        imgs.push(canvas.toDataURL("image/jpeg",0.85));
+      }
+      if(!cancel){ setPages(imgs); setEstado("ok"); }
+    }catch(e){ if(!cancel) setEstado("erro"); }
+  })(); return ()=>{cancel=true;}; },[url]);
+  const abrirExterno=async()=>{ try{ await Browser.open({url,presentationStyle:"fullscreen"}); }catch(e){ window.open(url,"_blank"); } };
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:C.bg,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"calc(10px + env(safe-area-inset-top)) 14px 10px",borderBottom:`1px solid ${C.line}`,background:C.nav}}>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.t,fontSize:24,lineHeight:1,cursor:"pointer",padding:"0 4px"}}>‹</button>
+        <span style={{color:C.t,fontSize:15,fontWeight:700,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title||"Documento"}</span>
+        <button onClick={abrirExterno} style={{background:"none",border:"none",color:C.yd,fontSize:13,fontWeight:700,cursor:"pointer"}}>Baixar</button>
+      </div>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.surf,padding:"12px 10px calc(14px + env(safe-area-inset-bottom))"}}>
+        {estado==="load"&&<p style={{color:C.s,fontSize:13,textAlign:"center",marginTop:40}}>Carregando documento…</p>}
+        {estado==="erro"&&(<div style={{textAlign:"center",marginTop:40,padding:"0 24px"}}><p style={{color:C.s,fontSize:13,lineHeight:1.5}}>Não foi possível exibir o PDF aqui. Toque abaixo para abrir.</p><button onClick={abrirExterno} style={{marginTop:14,background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:"12px 22px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Abrir documento</button></div>)}
+        {estado==="ok"&&pages.map((src,i)=>(<img key={i} src={src} alt={"Página "+(i+1)} style={{width:"100%",display:"block",marginBottom:10,borderRadius:6,boxShadow:"0 2px 10px rgba(0,0,0,0.15)"}}/>))}
+      </div>
+    </div>
+  );
+};
+
+const PhotoCard=({label,val,onPick,capture})=>(
+  <label style={{flex:1,minWidth:0,aspectRatio:"1/1",background:val?"#000":C.surf,border:`1.5px dashed ${val?"transparent":C.line3}`,borderRadius:14,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,cursor:"pointer",overflow:"hidden",position:"relative"}}>
+    <input type="file" accept="image/*" capture={capture} onChange={onPick} style={{display:"none"}}/>
+    {val
+      ? <><img src={val} alt={label} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/><span style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.55)",color:"#fff",fontSize:10,fontWeight:700,padding:"3px 0",textAlign:"center"}}>{label} ✓</span></>
+      : <><span style={{fontSize:22}}>📷</span><span style={{color:C.s,fontSize:10.5,fontWeight:700,textAlign:"center",padding:"0 4px"}}>{label}</span></>}
+  </label>
+);
+
+const AssinarContrato=({cliente,onClose})=>{
+  const canvasRef=useRef(null); const drawing=useRef(false);
+  const [temAss,setTemAss]=useState(false);
+  const [fotos,setFotos]=useState({frente:null,verso:null,selfie:null});
+  const [aceite,setAceite]=useState(false);
+  const [enviando,setEnviando]=useState(false);
+  const [erro,setErro]=useState(null);
+  const [ok,setOk]=useState(false);
+
+  useEffect(()=>{ const c=canvasRef.current; if(!c)return; const r=c.getBoundingClientRect(); c.width=r.width*2; c.height=r.height*2; const ctx=c.getContext("2d"); ctx.scale(2,2); ctx.lineWidth=2.5; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="#111111"; },[]);
+  const pos=(e)=>{ const c=canvasRef.current; const r=c.getBoundingClientRect(); const t=e.touches&&e.touches[0]?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; };
+  const start=(e)=>{ e.preventDefault(); drawing.current=true; const ctx=canvasRef.current.getContext("2d"); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); };
+  const move=(e)=>{ if(!drawing.current)return; e.preventDefault(); const ctx=canvasRef.current.getContext("2d"); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); if(!temAss)setTemAss(true); };
+  const end=()=>{ drawing.current=false; };
+  const limpar=()=>{ const c=canvasRef.current; c.getContext("2d").clearRect(0,0,c.width,c.height); setTemAss(false); };
+
+  const lerFoto=(key)=>(e)=>{ const file=e.target.files&&e.target.files[0]; if(!file)return;
+    const fr=new FileReader();
+    fr.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=1280; let w=img.width,h=img.height; if(w>h&&w>max){h=h*max/w;w=max;} else if(h>=w&&h>max){w=w*max/h;h=max;} const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(img,0,0,w,h); setFotos(f=>({...f,[key]:cv.toDataURL("image/jpeg",0.7)})); }; img.src=fr.result; };
+    fr.readAsDataURL(file);
+  };
+
+  const completo = temAss && fotos.frente && fotos.verso && fotos.selfie && aceite;
+  const enviar=async()=>{
+    if(!completo||enviando)return; setEnviando(true); setErro(null);
+    try{
+      const assinatura=canvasRef.current.toDataURL("image/png");
+      const d=await api("app-contrato-assinar",{cpf:cliente.cpf,senha:cliente.senha,contrato:cliente.contratoId,nome:cliente.nome,assinatura,docFrente:fotos.frente,docVerso:fotos.verso,selfie:fotos.selfie,aceite:true,dataHora:new Date().toISOString()});
+      if(d&&(d.ok||d.success||d.status==="success"||d.status===true)) setOk(true);
+      else setErro((d&&(d.mensagem||d.message))||"Não foi possível enviar agora. Tente novamente.");
+    }catch(e){ setErro("Falha de conexão. Tente novamente."); }
+    setEnviando(false);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:C.bg,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"calc(10px + env(safe-area-inset-top)) 14px 10px",borderBottom:`1px solid ${C.line}`,background:C.nav}}>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.t,fontSize:24,lineHeight:1,cursor:"pointer",padding:"0 4px"}}>‹</button>
+        <span style={{color:C.t,fontSize:15,fontWeight:700,flex:1}}>Assinar contrato</span>
+      </div>
+
+      {ok ? (
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,padding:"0 28px",textAlign:"center"}}>
+          <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(52,211,153,0.15)",border:"2px solid rgba(52,211,153,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>✅</div>
+          <p style={{color:C.t,fontSize:18,fontWeight:800,margin:0}}>Assinatura enviada!</p>
+          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Recebemos sua assinatura e suas fotos. Seu contrato será registrado em instantes.</p>
+          <button onClick={onClose} style={{marginTop:8,width:"100%",maxWidth:280,background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:800,cursor:"pointer"}}>Concluir</button>
+        </div>
+      ) : (
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:16}}>
+          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Contrato #{cliente.contratoId} — {cliente.nome}. Assine no quadro e envie as fotos solicitadas.</p>
+
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <label style={{color:C.t,fontSize:13,fontWeight:700}}>Sua assinatura</label>
+              <button onClick={limpar} style={{background:"none",border:"none",color:C.yd,fontSize:12,fontWeight:700,cursor:"pointer"}}>Limpar</button>
+            </div>
+            <canvas ref={canvasRef} onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end} style={{width:"100%",height:170,background:"#ffffff",border:`1px solid ${C.line2}`,borderRadius:12,touchAction:"none",display:"block"}}/>
+            {!temAss&&<p style={{color:C.s,fontSize:11,margin:"6px 0 0",textAlign:"center"}}>Assine com o dedo dentro do quadro</p>}
+          </div>
+
+          <div>
+            <label style={{color:C.t,fontSize:13,fontWeight:700,display:"block",marginBottom:8}}>Documento e selfie</label>
+            <div style={{display:"flex",gap:10}}>
+              <PhotoCard label="Doc. frente" val={fotos.frente} onPick={lerFoto("frente")} capture="environment"/>
+              <PhotoCard label="Doc. verso" val={fotos.verso} onPick={lerFoto("verso")} capture="environment"/>
+              <PhotoCard label="Selfie c/ doc" val={fotos.selfie} onPick={lerFoto("selfie")} capture="user"/>
+            </div>
+          </div>
+
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer"}}>
+            <input type="checkbox" checked={aceite} onChange={e=>setAceite(e.target.checked)} style={{marginTop:2,width:18,height:18,flexShrink:0,accentColor:C.y}}/>
+            <span style={{color:C.t,fontSize:12.5,lineHeight:1.45}}>Li e aceito os termos do contrato e confirmo que as informações e fotos enviadas são verdadeiras.</span>
+          </label>
+
+          {erro&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.4)",borderRadius:12,padding:"11px 14px",color:C.t,fontSize:13}}>⚠️ {erro}</div>}
+
+          <button onClick={enviar} disabled={!completo||enviando} style={{width:"100%",background:(!completo||enviando)?C.line3:C.y,color:"#1a1000",border:"none",borderRadius:14,padding:15,fontSize:15,fontWeight:800,cursor:(!completo||enviando)?"default":"pointer",opacity:(!completo||enviando)?0.7:1}}>{enviando?"Enviando…":"Enviar assinatura"}</button>
+          <p style={{color:C.s,fontSize:11,margin:0,textAlign:"center",lineHeight:1.4}}>Registramos data, hora e seu aceite junto com a assinatura.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Contrato = ({goBack,cliente}) => {
+  const [verPdf,setVerPdf]=useState(null);
+  const [assinar,setAssinar]=useState(false);
   const assinado=!!cliente.termoAssinado;
   const url=cliente.termoUrl||"";
   const pdf=cliente.termoPdf||"";
   const abrir=async(u)=>{ if(!u)return; try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
-  return(
+  return(<>
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
       <Back onClick={goBack}/>
       <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>Meu Contrato</h2>
@@ -817,22 +1010,25 @@ const Contrato = ({goBack,cliente}) => {
           <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(52,211,153,0.15)",border:"2px solid rgba(52,211,153,0.4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>✅</div>
           <p style={{color:C.g,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Contrato assinado</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Seu termo de adesão já está assinado e registrado no sistema.</p>
-          {pdf&&<button onClick={()=>abrir(pdf)} style={{marginTop:8,width:"100%",background:C.surf2,color:C.t,border:`1px solid ${C.line2}`,borderRadius:12,padding:13,fontSize:14,fontWeight:600,cursor:"pointer"}}>📄 Baixar termo assinado (PDF)</button>}
+          {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:8,width:"100%",background:C.surf2,color:C.t,border:`1px solid ${C.line2}`,borderRadius:12,padding:13,fontSize:14,fontWeight:600,cursor:"pointer"}}>📄 Baixar termo assinado (PDF)</button>}
         </div>
       ) : (
         <div style={{background:"rgba(245,194,0,0.07)",border:"1px solid rgba(245,194,0,0.25)",borderRadius:16,padding:18,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
           <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(245,194,0,0.15)",border:"2px solid rgba(245,194,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>✍️</div>
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
-          {url ? (
-            <button onClick={()=>abrir(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
+          {true ? (
+            <button onClick={()=>setAssinar(true)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
           ) : (
             <p style={{color:C.s,fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>O link de assinatura ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
           )}
-          {pdf&&<button onClick={()=>abrir(pdf)} style={{marginTop:4,width:"100%",background:"none",color:C.s,border:"none",fontSize:12,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>Ver o termo (PDF)</button>}
+          {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:4,width:"100%",background:"none",color:C.s,border:"none",fontSize:12,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>Ver o termo (PDF)</button>}
         </div>
       )}
     </div>
+      {verPdf&&<PdfViewer url={verPdf} title="Termo de adesão" onClose={()=>setVerPdf(null)}/>}
+      {assinar&&<AssinarContrato cliente={cliente} onClose={()=>setAssinar(false)}/>}
+    </>
   );
 };
 
