@@ -408,6 +408,14 @@ const CardCentral = ({cliente,goTo}) => {
   const ativo=!/(inativ|bloqu|suspens|cancel|desativ|cortad)/i.test(st);
   const CARD={background:"#fff",borderRadius:22,boxShadow:"0 12px 30px rgba(0,0,0,0.18)"};
 
+  if(!cliente.termoAssinado) return (
+    <div onClick={()=>goTo("contrato")} style={{...CARD,padding:"26px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,cursor:"pointer"}}>
+      <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(245,194,0,0.16)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>✍️</div>
+      <p style={{color:"#16161d",fontSize:21,fontWeight:800,margin:0}}>Assine seu contrato</p>
+      <p style={{color:"#6b6457",fontSize:13.5,margin:0,textAlign:"center"}}>Seu termo de adesão está pendente de assinatura.</p>
+      <div style={{marginTop:8,width:"100%",background:"linear-gradient(135deg,#F5C200,#FFD633)",color:"#2b2b3d",fontSize:14,fontWeight:800,padding:"12px 0",borderRadius:13,textAlign:"center"}}>Assinar agora →</div>
+    </div>
+  );
   if(pend) return (
     <div onClick={()=>goTo("boleto")} style={{...CARD,padding:"26px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,cursor:"pointer"}}>
       <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(220,38,38,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>⚠️</div>
@@ -453,7 +461,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
   const inicial=(cliente.nome||"C").charAt(0).toUpperCase();
   const primeiro=(cliente.nome||"Cliente").split(" ")[0];
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
-  const contatos=[["💬",()=>abrir("https://wa.me/556130203761")],["📷",()=>abrir("https://instagram.com/oryxinternet")],["📞",()=>{try{window.location.href="tel:+556130203761";}catch(e){}}]];
+  const contatos=[["💬",()=>abrir("https://wa.me/556130203761")],[(<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>),()=>abrir("https://instagram.com/oryxinternet")],["📞",()=>{try{window.location.href="tel:+556130203761";}catch(e){}}]];
   const atalhos=[
     {emoji:"💳",label:"2ª via",screen:"boleto"},
     {emoji:"🔓",label:"Desbloqueio",screen:"desbloqueio"},
@@ -988,7 +996,6 @@ const AssinarContrato=({cliente,onClose})=>{
 
 const Contrato = ({goBack,cliente}) => {
   const [verPdf,setVerPdf]=useState(null);
-  const [assinar,setAssinar]=useState(false);
   const assinado=!!cliente.termoAssinado;
   const url=cliente.termoUrl||"";
   const pdf=cliente.termoPdf||"";
@@ -1017,8 +1024,8 @@ const Contrato = ({goBack,cliente}) => {
           <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(245,194,0,0.15)",border:"2px solid rgba(245,194,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>✍️</div>
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
-          {true ? (
-            <button onClick={()=>setAssinar(true)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
+          {url ? (
+            <button onClick={()=>abrir(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
           ) : (
             <p style={{color:C.s,fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>O link de assinatura ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
           )}
@@ -1027,12 +1034,24 @@ const Contrato = ({goBack,cliente}) => {
       )}
     </div>
       {verPdf&&<PdfViewer url={verPdf} title="Termo de adesão" onClose={()=>setVerPdf(null)}/>}
-      {assinar&&<AssinarContrato cliente={cliente} onClose={()=>setAssinar(false)}/>}
     </>
   );
 };
 
 // ─── MEUS APPS ───
+const abrirNoApp=async(url)=>{
+  try{
+    const mod=await import("@capacitor/inappbrowser");
+    const IAB=mod.InAppBrowser;
+    if(IAB&&IAB.openInWebView&&mod.DefaultWebViewOptions){
+      await IAB.openInWebView({url,options:{...mod.DefaultWebViewOptions,showURL:false}});
+      return;
+    }
+  }catch(e){}
+  try{ await Browser.open({url,presentationStyle:"fullscreen"}); return; }catch(e){}
+  window.open(url,"_blank");
+};
+
 const MeusApps=({goBack})=>{
   const PORTAL="https://www.portaldoassinante.com/oryx";
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
@@ -1045,7 +1064,7 @@ const MeusApps=({goBack})=>{
         <div style={{width:64,height:64,borderRadius:18,background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📺</div>
         <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"6px 0 0"}}>Portal do Assinante</p>
         <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Acesse seus aplicativos de streaming, serviços e benefícios inclusos no seu plano Oryx.</p>
-        <button onClick={()=>abrir(PORTAL)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Abrir Portal do Assinante →</button>
+        <button onClick={()=>abrirNoApp(PORTAL)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Abrir Portal do Assinante →</button>
       </div>
 
       <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
