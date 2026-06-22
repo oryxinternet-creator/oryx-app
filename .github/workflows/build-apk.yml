@@ -1,0 +1,74 @@
+name: Build APK
+
+# Roda quando você faz push na branch main, ou manualmente pelo botão "Run workflow"
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Build do app web (Vite)
+        run: npm run build
+
+      - name: Adicionar plataforma Android (Capacitor)
+        run: npx cap add android
+
+      - name: Ajustar minSdk para 26 (WebView nativa)
+        run: sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 26/' android/variables.gradle
+
+      - name: Copiar google-services.json (Firebase)
+        run: cp google-services.json android/app/google-services.json
+
+      - name: Adicionar permissão de notificação (Android 13+)
+        run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />#' android/app/src/main/AndroidManifest.xml
+
+      - name: Aplicar ícone da Oryx (logo)
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp app-icons/ic_launcher_$d.png            android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp app-icons/ic_launcher_round_$d.png      android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp app-icons/ic_launcher_foreground_$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+          done
+          mkdir -p android/app/src/main/res/values
+          cp app-icons/ic_launcher_background.xml android/app/src/main/res/values/ic_launcher_background.xml
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp app-icons/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp app-icons/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          rm -f android/app/src/main/res/drawable*/ic_launcher_foreground.xml || true
+
+      - name: Sincronizar build com o Android
+        run: npx cap sync android
+
+      - name: Configurar Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Gerar APK (debug)
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Publicar o APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: oryx-app-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
