@@ -1113,6 +1113,26 @@ export default function App(){
   const mkCliente=(a,ct)=>({cpf:a.cpf,senha:a.senha||"",demo:!!a.demo,nome:a.nome,contratoId:ct.contratoId,clienteId:ct.clienteId,plano:ct.plano||"Internet",status:ct.status||"Ativo",vencimento:ct.vencimento||null,valorAberto:ct.valorAberto||null,titulos:ct.titulos||0,pendencia:!!ct.pendencia,termoAssinado:!!ct.termoAssinado,termoUrl:ct.termoUrl||"",termoPdf:ct.termoPdf||""});
   const onAuth=(a)=>{ setConta(a); if(a.contratos.length===1){ setCliente(mkCliente(a,a.contratos[0])); setScreen("main"); salvarSessao(a,a.contratos[0].contratoId); registrarPush(a.cpf,a.contratos[0].contratoId); } else { setScreen("selecao"); salvarSessao(a,null); } };
   const escolher=(ct)=>{ setCliente(mkCliente(conta,ct)); setScreen("main"); salvarSessao(conta,ct.contratoId); registrarPush(conta.cpf,ct.contratoId); };
+  const refreshCliente=async()=>{
+    if(!conta||!cliente)return;
+    try{
+      const d=await api("app-login",{cpf:conta.cpf,senha:conta.senha});
+      let contratos=null;
+      if(d&&d.ok!==false&&Array.isArray(d.contratos)&&d.contratos.length) contratos=d.contratos;
+      else if(d&&d.ok!==false&&(d.contratoId||d.nome)) contratos=[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia,termoAssinado:d.termoAssinado,termoUrl:d.termoUrl,termoPdf:d.termoPdf}];
+      if(!contratos)return;
+      const nc={...conta,nome:d.nome||conta.nome,contratos};
+      setConta(nc);
+      const ct=contratos.find(x=>String(x.contratoId)===String(cliente.contratoId))||contratos[0];
+      setCliente(mkCliente(nc,ct));
+      salvarSessao(nc,ct.contratoId);
+    }catch(e){}
+  };
+  useEffect(()=>{
+    const onVis=()=>{ if(document.visibilityState==="visible") refreshCliente(); };
+    document.addEventListener("visibilitychange",onVis);
+    return ()=>document.removeEventListener("visibilitychange",onVis);
+  },[conta,cliente]);
   const [theme,setTheme]=useState("light");
   useEffect(()=>{
     const s=lerSessao();
