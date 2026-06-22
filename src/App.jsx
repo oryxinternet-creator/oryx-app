@@ -1025,7 +1025,7 @@ const Contrato = ({goBack,cliente}) => {
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
           {url ? (
-            <button onClick={()=>abrir(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
+            <button onClick={()=>abrirNoApp(url)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
           ) : (
             <p style={{color:C.s,fontSize:11,margin:"8px 0 0",fontStyle:"italic"}}>O link de assinatura ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
           )}
@@ -1040,6 +1040,15 @@ const Contrato = ({goBack,cliente}) => {
 
 // ─── MEUS APPS ───
 const abrirNoApp=async(url)=>{
+  try{
+    const mod=await import("@capacitor/inappbrowser");
+    const IAB=mod.InAppBrowser;
+    if(IAB&&IAB.openInWebView){
+      const opt=mod.DefaultWebViewOptions||{};
+      await IAB.openInWebView({url,options:{...opt,showURL:false}});
+      return;
+    }
+  }catch(e){}
   try{ await Browser.open({url,presentationStyle:"fullscreen"}); return; }catch(e){}
   window.open(url,"_blank");
 };
