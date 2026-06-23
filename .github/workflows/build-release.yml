@@ -2,13 +2,6 @@ name: Build Release (Play Store)
 
 # Gera o .AAB de PRODUÇÃO assinado, pronto para a Google Play Store.
 # Roda manualmente pelo botão "Run workflow" na aba Actions.
-#
-# ANTES DE RODAR, configure os 4 SECRETS do repositório
-# (Settings > Secrets and variables > Actions > New repository secret):
-#   KEYSTORE_BASE64      -> a keystore (.jks) convertida em base64
-#   KEYSTORE_PASSWORD    -> senha da keystore
-#   KEY_ALIAS            -> alias da chave (ex: oryx)
-#   KEY_PASSWORD         -> senha da chave (geralmente igual à da keystore)
 
 on:
   workflow_dispatch:
@@ -77,7 +70,7 @@ jobs:
           cd android
           chmod +x ./gradlew
           ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file=oryx-release.jks \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/android/app/oryx-release.jks \
             -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
@@ -86,7 +79,7 @@ jobs:
         run: |
           cd android
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=oryx-release.jks \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/android/app/oryx-release.jks \
             -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
