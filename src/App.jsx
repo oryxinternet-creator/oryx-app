@@ -494,7 +494,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
       <div style={{flex:1,display:"flex",alignItems:"center",padding:"14px 18px"}}>
         <div style={{width:"100%"}}><CardCentral cliente={cliente} goTo={goTo}/></div>
       </div>
-      <div style={{padding:"0 0 18px 16px",display:"flex",gap:11,overflowX:"auto",scrollbarWidth:"none"}}>
+      <div style={{padding:"0 0 calc(18px + env(safe-area-inset-bottom)) 16px",display:"flex",gap:11,overflowX:"auto",scrollbarWidth:"none"}}>
         {atalhos.map((a,i)=>(
           <button key={i} onClick={()=>goTo(a.screen)} style={{minWidth:90,flexShrink:0,background:"#3D3D5C",border:"none",borderRadius:16,padding:"14px 10px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,color:"#fff",cursor:"pointer"}}>
             <span style={{fontSize:24}}>{a.emoji}</span>
