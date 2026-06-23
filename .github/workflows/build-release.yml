@@ -30,6 +30,12 @@ jobs:
       - name: Ajustar minSdk para 26 (WebView nativa)
         run: sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 26/' android/variables.gradle
 
+      - name: Ajustar SDK de destino para 35 + AGP/Gradle (exigencia Play Store)
+        run: |
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 35/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 35/' android/variables.gradle
+          sed -i 's/com.android.tools.build:gradle:8.2.1/com.android.tools.build:gradle:8.6.1/' android/build.gradle
+          sed -i 's#gradle-8.2.1-all.zip#gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+
       - name: Copiar google-services.json (Firebase)
         run: cp google-services.json android/app/google-services.json
 
