@@ -1082,9 +1082,13 @@ const MeusApps=({goBack})=>{
 // ═══════════════════ MEU WI-FI — automação local do modem ═══════════════════
 const WIFI_CREDS = { f6600p:{u:"multipro",p:"multipro"}, ax1800v:{u:"admin",p:"Oryx@2025"} };
 const WIFI_MGMT = { ssid:"ORYX INTERNET (61) 30203761", pass:"Oryx@2025" };
+async function wifiPedirPermissao(){
+  return new Promise(function(res){ try{ var perms=window.cordova&&window.cordova.plugins&&window.cordova.plugins.permissions; if(!perms||!perms.requestPermission) return res(false); perms.requestPermission(perms.ACCESS_FINE_LOCATION, function(st){ res(!!(st&&st.hasPermission)); }, function(){ res(false); }); }catch(e){ res(false); } });
+}
 async function wifiConectarGerencia(){
   const W=window.WifiWizard2;
-  if(!W||!W.connect) throw new Error("plugin de Wi-Fi indisponível");
+  if(!W||!W.connect) throw new Error("plugin_wifi_ausente");
+  try{ await wifiPedirPermissao(); }catch(e){}
   await W.connect(WIFI_MGMT.ssid, true, WIFI_MGMT.pass, "WPA");
 }
 async function wifiLiberarGerencia(){
@@ -1314,6 +1318,7 @@ function MeuWifi({cliente}){
   const [msg,setMsg]=useState("");
   const [verS,setVerS]=useState({});
   const [diag,setDiag]=useState(null);
+  const [aguardandoGerencia,setAguardandoGerencia]=useState(false);
   const [verDiag,setVerDiag]=useState(false);
 
   async function carregar(){
@@ -1335,6 +1340,19 @@ function MeuWifi({cliente}){
   }
   useEffect(()=>{ carregar(); },[]);
 
+  async function fazerTrocaLocal(){
+    const gws2=await wifiGateways();
+    let ok=false, le=null;
+    for(let i=0;i<gws2.length;i++){ try{ await wifiDriveModem(gws2[i],"trocar",{nome:nome.trim()||null,senha:senha,model:model}); ok=true; break; }catch(e){ le=e; } }
+    try{ await wifiLiberarGerencia(); }catch(e){}
+    if(!ok) throw (le||new Error("não consegui falar com o modem"));
+  }
+  async function continuarAposGerencia(){
+    setAguardandoGerencia(false); setSalvando(true); setMsg("Aplicando as mudanças… não feche o app.");
+    try{ await fazerTrocaLocal(); setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha."); setEditar(false); setNome(""); setSenha(""); setTimeout(carregar,3000); }
+    catch(e){ setMsg("❌ Não deu pra alterar. "+((e&&e.message)?e.message:"")+" Confirme que conectou na rede de gerência e tente de novo."); }
+    setSalvando(false);
+  }
   async function salvar(){
     if(nome.trim().length>32){ setMsg("O nome deve ter até 32 caracteres."); return; }
     if(senha.trim().length<8){ setMsg("A senha deve ter no mínimo 8 caracteres."); return; }
@@ -1343,13 +1361,10 @@ function MeuWifi({cliente}){
       if(remoto){ await api("app-wifi-set",{cpf:cliente.cpf,contrato:cliente.contratoId,novo_nome:nome.trim()||null,nova_senha:senha,bands:"both",model:model}); }
       else if(model==="ax1800v"){
         setMsg("Conectando na rede de gerência… toque em \"Conectar\" no aviso do Android.");
-        await wifiConectarGerencia();
-        await wifiSleep(3500);
-        const gws2=await wifiGateways();
-        let ok=false, le=null;
-        for(let i=0;i<gws2.length;i++){ try{ await wifiDriveModem(gws2[i],"trocar",{nome:nome.trim()||null,senha:senha,model:model}); ok=true; break; }catch(e){ le=e; } }
-        await wifiLiberarGerencia();
-        if(!ok) throw (le||new Error("não consegui falar com o modem pela rede de gerência"));
+        let auto=false;
+        try{ await wifiConectarGerencia(); await wifiSleep(3500); auto=true; }catch(eg){ auto=false; }
+        if(!auto){ setSalvando(false); setAguardandoGerencia(true); return; }
+        await fazerTrocaLocal();
       }
       else{ await wifiDriveModem(gw,"trocar",{nome:nome.trim()||null,senha:senha,model:model}); }
       setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha.");
@@ -1407,7 +1422,7 @@ function MeuWifi({cliente}){
         </>
       )}
 
-      {st==="ready"&&editar&&(
+      {st==="ready"&&editar&&!aguardandoGerencia&&(
         <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"20px 18px",display:"flex",flexDirection:"column",gap:14}}>
           <h3 style={{color:C.t,fontSize:16,fontWeight:800,margin:0}}>Alterar Wi-Fi</h3>
           <p style={{color:C.s,fontSize:12,margin:"-6px 0 0",lineHeight:1.5}}>O nome recebe o prefixo <b>ORYX-</b>. {model==="ax1800v"?"As redes 2.4G e 5G serão alteradas.":"A rede 5G é sincronizada automaticamente."}</p>
@@ -1429,6 +1444,21 @@ function MeuWifi({cliente}){
           <Btn label={salvando?"Aplicando… (não feche o app)":"Salvar alterações"} onClick={salvar} disabled={salvando||senha.trim().length<8}/>
           <button onClick={()=>{ setEditar(false); setMsg(""); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
           {salvando&&<p style={{color:C.s,fontSize:11.5,margin:0,textAlign:"center",lineHeight:1.5}}>Isso pode levar até 1 minuto. Sua conexão vai cair por alguns segundos quando o Wi-Fi trocar — é normal.</p>}
+        </div>
+      )}
+      {aguardandoGerencia&&(
+        <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"20px 18px",display:"flex",flexDirection:"column",gap:12}}>
+          <h3 style={{color:C.t,fontSize:16,fontWeight:800,margin:0}}>Conecte na rede de gerência</h3>
+          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Pra trocar sem cair a conexão, conecte este celular na rede abaixo (nas configurações de Wi-Fi do Android). Depois volte aqui e toque em Continuar.</p>
+          <div style={{background:C.surf2,borderRadius:12,padding:"12px 14px"}}>
+            <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Rede</p>
+            <p style={{color:C.t,fontSize:15,fontWeight:700,margin:"0 0 8px",wordBreak:"break-all"}}>{WIFI_MGMT.ssid}</p>
+            <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Senha</p>
+            <p style={{color:C.t,fontSize:15,fontWeight:700,margin:0,fontFamily:"monospace"}}>{WIFI_MGMT.pass}</p>
+          </div>
+          <Btn label={salvando?"Aplicando…":"Já conectei — Continuar"} onClick={continuarAposGerencia} disabled={salvando}/>
+          <button onClick={()=>{ setAguardandoGerencia(false); wifiLiberarGerencia(); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
+          {msg&&<div style={{background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:10,padding:"10px 14px",color:C.r,fontSize:13}}>{msg}</div>}
         </div>
       )}
     </div>
