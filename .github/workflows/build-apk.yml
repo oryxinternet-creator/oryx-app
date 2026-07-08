@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar o código
+      - name: Baixar o codigo
         uses: actions/checkout@v4
 
       - name: Configurar Node.js
@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Instalar dependências
+      - name: Instalar dependencias
         run: npm install
 
       - name: Build do app web (Vite)
@@ -30,14 +30,26 @@ jobs:
       - name: Ajustar minSdk para 26 (WebView nativa)
         run: sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 26/' android/variables.gradle
 
+      - name: Ajustar SDK de destino para 35 + AGP/Gradle
+        run: |
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 35/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 35/' android/variables.gradle
+          sed -i 's/com.android.tools.build:gradle:8.2.1/com.android.tools.build:gradle:8.6.1/' android/build.gradle
+          sed -i 's#gradle-8.2.1-all.zip#gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Definir versionCode unico
+        run: sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/" android/app/build.gradle
+
       - name: Copiar google-services.json (Firebase)
         run: cp google-services.json android/app/google-services.json
 
-      - name: Adicionar permissão de notificação (Android 13+)
+      - name: Adicionar permissao de notificacao (Android 13+)
         run: |
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />#' android/app/src/main/AndroidManifest.xml
 
-      - name: Aplicar ícone da Oryx (logo)
+      - name: Liberar HTTP local (acesso ao modem)
+        run: sed -i 's/<application /<application android:usesCleartextTraffic="true" /' android/app/src/main/AndroidManifest.xml
+
+      - name: Aplicar icone da Oryx (logo)
         run: |
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             mkdir -p android/app/src/main/res/mipmap-$d
