@@ -1081,6 +1081,15 @@ const MeusApps=({goBack})=>{
 
 // ═══════════════════ MEU WI-FI — automação local do modem ═══════════════════
 const WIFI_CREDS = { f6600p:{u:"multipro",p:"multipro"}, ax1800v:{u:"admin",p:"Oryx@2025"} };
+const WIFI_MGMT = { ssid:"ORYX INTERNET (61) 30203761", pass:"Oryx@2025" };
+async function wifiConectarGerencia(){
+  const W=window.WifiWizard2;
+  if(!W||!W.connect) throw new Error("plugin de Wi-Fi indisponível");
+  await W.connect(WIFI_MGMT.ssid, true, WIFI_MGMT.pass, "WPA");
+}
+async function wifiLiberarGerencia(){
+  try{ const W=window.WifiWizard2; if(W){ if(W.disconnect){ try{ await W.disconnect(WIFI_MGMT.ssid); }catch(e){ try{ await W.disconnect(); }catch(_){} } } } }catch(e){}
+}
 function wifiSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 function wifiGateways(){
   return new Promise(function(resolve){
@@ -1111,6 +1120,8 @@ var WIFI_PROBE = "(function(){try{var m='',p='';"
  +"else if(document.querySelector('#localnet')||document.querySelector('#wlanConfig')){m='f6600p';p='main';}"
  +"else if(document.querySelector('#contentIframe')){m='ax1800v';p='main';}"
  +"return JSON.stringify({model:m,page:p});}catch(e){return JSON.stringify({model:'',page:''});}})()";
+var WIFI_LOGOUT = "(function(){try{function clk(doc){if(!doc)return false;var a=[].slice.call(doc.querySelectorAll('a,button,input')).find(function(e){var t=((e.textContent||e.value||'')+'').trim();return /^(sair|logout|log ?out|sign ?out)$/i.test(t);});if(a){a.click();return true;}return false;}if(clk(document))return 'saiu';var f=document.querySelector('#contentIframe');if(f&&f.contentDocument&&clk(f.contentDocument))return 'saiu-iframe';return 'sem-logout';}catch(e){return 'err';}})()";
+
 function wifiLoginCode(model){
   var c=WIFI_CREDS[model]||{}; var u=JSON.stringify(c.u||""); var p=JSON.stringify(c.p||"");
   if(model==="f6600p"){
@@ -1279,7 +1290,7 @@ function wifiDriveModem(gateway, acao, params){
           var t0=Date.now(), lim=(acao==="trocar")?160000:80000;
           while(Date.now()-t0<lim){
             var rs=await wifiExec(ref,"window.__wifiOut?JSON.stringify(window.__wifiOut):(window.__wifiErr?'ERR:'+window.__wifiErr:'')");
-            if(rs){ if(String(rs).indexOf("ERR:")===0) return fin(new Error(String(rs).slice(4))); var out={}; try{ out=JSON.parse(rs); }catch(e){} out.model=model; return fin(null,out); }
+            if(rs){ if(String(rs).indexOf("ERR:")===0){ try{ await wifiExec(ref,WIFI_LOGOUT); }catch(e){} return fin(new Error(String(rs).slice(4))); } var out={}; try{ out=JSON.parse(rs); }catch(e){} out.model=model; try{ await wifiExec(ref,WIFI_LOGOUT); await wifiSleep(600); }catch(e){} return fin(null,out); }
             await wifiSleep(700);
           }
           return fin(new Error("timeout_acao"));
@@ -1330,11 +1341,21 @@ function MeuWifi({cliente}){
     setMsg(""); setSalvando(true);
     try{
       if(remoto){ await api("app-wifi-set",{cpf:cliente.cpf,contrato:cliente.contratoId,novo_nome:nome.trim()||null,nova_senha:senha,bands:"both",model:model}); }
+      else if(model==="ax1800v"){
+        setMsg("Conectando na rede de gerência… toque em \"Conectar\" no aviso do Android.");
+        await wifiConectarGerencia();
+        await wifiSleep(3500);
+        const gws2=await wifiGateways();
+        let ok=false, le=null;
+        for(let i=0;i<gws2.length;i++){ try{ await wifiDriveModem(gws2[i],"trocar",{nome:nome.trim()||null,senha:senha,model:model}); ok=true; break; }catch(e){ le=e; } }
+        await wifiLiberarGerencia();
+        if(!ok) throw (le||new Error("não consegui falar com o modem pela rede de gerência"));
+      }
       else{ await wifiDriveModem(gw,"trocar",{nome:nome.trim()||null,senha:senha,model:model}); }
-      setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos com o novo nome/senha.");
+      setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha.");
       setEditar(false); setNome(""); setSenha("");
       setTimeout(carregar,3000);
-    }catch(e){ setMsg("❌ Não deu pra alterar agora. Verifique se está conectado na rede da Oryx e tente de novo."); }
+    }catch(e){ await wifiLiberarGerencia(); setMsg("❌ Não deu pra alterar agora. "+((e&&e.message)?e.message:"")+" Verifique a conexão e tente de novo."); }
     setSalvando(false);
   }
 
