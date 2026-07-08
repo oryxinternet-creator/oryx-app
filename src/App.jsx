@@ -1084,7 +1084,7 @@ const WIFI_CREDS = { f6600p:{u:"multipro",p:"multipro"}, ax1800v:{u:"admin",p:"O
 function wifiSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 function wifiGateways(){
   return new Promise(function(resolve){
-    var commons=["192.168.1.1","192.168.0.1","192.168.15.1","192.168.100.1","10.0.0.1"];
+    var commons=["192.168.1.1","192.168.0.1","192.168.15.1","192.168.18.1","192.168.22.1","192.168.25.1","192.168.100.1","192.168.3.1","10.0.0.1"];
     try{
       var ni=window.networkinterface;
       if(ni&&ni.getWiFiIPAddress){
@@ -1302,21 +1302,25 @@ function MeuWifi({cliente}){
   const [salvando,setSalvando]=useState(false);
   const [msg,setMsg]=useState("");
   const [verS,setVerS]=useState({});
+  const [diag,setDiag]=useState(null);
+  const [verDiag,setVerDiag]=useState(false);
 
   async function carregar(){
     setSt("detect"); setMsg("");
+    const dg={ cordova: !!(window.cordova), iab: !!(window.cordova&&window.cordova.InAppBrowser), ni: !!(window.networkinterface), gws:[], erros:[] };
     try{
-      const gws=await wifiGateways();
+      const gws=await wifiGateways(); dg.gws=gws;
       for(let i=0;i<gws.length;i++){
         try{ const r=await wifiDriveModem(gws[i],"ler",null);
-          if(r&&r.redes&&r.redes.length){ setRedes(r.redes); setModel(r.model||""); setGw(gws[i]); setRemoto(false); setSt("ready"); return; }
-        }catch(e){}
+          if(r&&r.redes&&r.redes.length){ setRedes(r.redes); setModel(r.model||""); setGw(gws[i]); setRemoto(false); setDiag(dg); setSt("ready"); return; }
+          dg.erros.push(gws[i]+": sem redes");
+        }catch(e){ dg.erros.push(gws[i]+": "+((e&&e.message)?e.message:"erro")); }
       }
-    }catch(e){}
+    }catch(e){ dg.erros.push("gateways: "+((e&&e.message)?e.message:String(e))); }
     try{ const d=await api("app-wifi-get",{cpf:cliente.cpf,contrato:cliente.contratoId});
-      if(d&&d.redes&&d.redes.length){ setRedes(d.redes); setModel(d.model||""); setRemoto(true); setSt("ready"); return; }
-    }catch(e){}
-    setSt("offnet");
+      if(d&&d.redes&&d.redes.length){ setRedes(d.redes); setModel(d.model||""); setRemoto(true); setDiag(dg); setSt("ready"); return; }
+    }catch(e){ dg.erros.push("remoto: "+((e&&e.message)?e.message:String(e))); }
+    setDiag(dg); setSt("offnet");
   }
   useEffect(()=>{ carregar(); },[]);
 
@@ -1350,6 +1354,8 @@ function MeuWifi({cliente}){
           <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.55}}>Para gerenciar o Wi-Fi pelo app, você precisa estar <b>conectado na rede da Oryx aqui na sua casa</b>. Se você está fora ou em dados móveis, conecte-se ao seu Wi-Fi e tente de novo.</p>
           <button onClick={carregar} style={{marginTop:8,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Tentar de novo</button>
           <a href={"https://wa.me/556130203761?text="+encodeURIComponent("Olá! Quero trocar o nome/senha do meu Wi-Fi.")} style={{color:C.s,fontSize:13,textDecoration:"underline",textUnderlineOffset:3}}>Prefiro falar com o suporte</a>
+          <button onClick={()=>setVerDiag(v=>!v)} style={{background:"none",border:"none",color:C.m,fontSize:11,cursor:"pointer",marginTop:4}}>Detalhes técnicos</button>
+          {verDiag&&diag&&<pre style={{width:"100%",boxSizing:"border-box",background:C.surf2,border:`1px solid ${C.line}`,borderRadius:8,padding:10,color:C.s,fontSize:10.5,whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,textAlign:"left"}}>{"cordova: "+diag.cordova+"  |  InAppBrowser: "+diag.iab+"  |  networkinterface: "+diag.ni+"\n\ngateways tentados:\n"+(diag.gws||[]).join(", ")+"\n\nresultado:\n"+(diag.erros||[]).join("\n")}</pre>}
         </div>
       )}
 
