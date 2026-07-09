@@ -1091,6 +1091,7 @@ async function wifiConectarGerencia(){
   try{ await wifiPedirPermissao(); }catch(e){}
   await W.connect(WIFI_MGMT.ssid, true, WIFI_MGMT.pass, "WPA");
 }
+function wifiKeepAwake(on){ try{ var i=window.plugins&&window.plugins.insomnia; if(i){ if(on&&i.keepAwake)i.keepAwake(); else if(!on&&i.allowSleepAgain)i.allowSleepAgain(); } }catch(e){} }
 async function wifiLiberarGerencia(){
   try{ const W=window.WifiWizard2; if(W){ if(W.disconnect){ try{ await W.disconnect(WIFI_MGMT.ssid); }catch(e){ try{ await W.disconnect(); }catch(_){} } } } }catch(e){}
 }
@@ -1294,7 +1295,7 @@ function wifiDriveModem(gateway, acao, params){
           var t0=Date.now(), lim=(acao==="trocar")?160000:80000;
           while(Date.now()-t0<lim){
             var rs=await wifiExec(ref,"window.__wifiOut?JSON.stringify(window.__wifiOut):(window.__wifiErr?'ERR:'+window.__wifiErr:'')");
-            if(rs){ if(String(rs).indexOf("ERR:")===0){ try{ await wifiExec(ref,WIFI_LOGOUT); }catch(e){} return fin(new Error(String(rs).slice(4))); } var out={}; try{ out=JSON.parse(rs); }catch(e){} out.model=model; try{ await wifiExec(ref,WIFI_LOGOUT); await wifiSleep(600); }catch(e){} return fin(null,out); }
+            if(rs){ if(String(rs).indexOf("ERR:")===0){ try{ await wifiExec(ref,WIFI_LOGOUT); await wifiSleep(1500); }catch(e){} return fin(new Error(String(rs).slice(4))); } var out={}; try{ out=JSON.parse(rs); }catch(e){} out.model=model; try{ await wifiExec(ref,WIFI_LOGOUT); var lt0=Date.now(); while(Date.now()-lt0<9000){ var back=await wifiExec(ref,"(document.querySelector('#Frm_Username')||document.querySelector('input[name=username]'))?'1':''"); if(back){ await wifiSleep(500); break; } await wifiSleep(500); } }catch(e){} return fin(null,out); }
             await wifiSleep(700);
           }
           return fin(new Error("timeout_acao"));
@@ -1323,20 +1324,21 @@ function MeuWifi({cliente}){
 
   async function carregar(){
     setSt("detect"); setMsg("");
+    window.__wifiBusy=true; wifiKeepAwake(true);
     const dg={ cordova: !!(window.cordova), iab: !!(window.cordova&&window.cordova.InAppBrowser), ni: !!(window.networkinterface), gws:[], erros:[] };
     try{
       const gws=await wifiGateways(); dg.gws=gws;
       for(let i=0;i<gws.length;i++){
         try{ const r=await wifiDriveModem(gws[i],"ler",null);
-          if(r&&r.redes&&r.redes.length){ setRedes(r.redes); setModel(r.model||""); setGw(gws[i]); setRemoto(false); setDiag(dg); setSt("ready"); return; }
+          if(r&&r.redes&&r.redes.length){ setRedes(r.redes); setModel(r.model||""); setGw(gws[i]); setRemoto(false); setDiag(dg); window.__wifiBusy=false; wifiKeepAwake(false); setSt("ready"); return; }
           dg.erros.push(gws[i]+": sem redes");
         }catch(e){ dg.erros.push(gws[i]+": "+((e&&e.message)?e.message:"erro")); }
       }
     }catch(e){ dg.erros.push("gateways: "+((e&&e.message)?e.message:String(e))); }
     try{ const d=await api("app-wifi-get",{cpf:cliente.cpf,contrato:cliente.contratoId});
-      if(d&&d.redes&&d.redes.length){ setRedes(d.redes); setModel(d.model||""); setRemoto(true); setDiag(dg); setSt("ready"); return; }
+      if(d&&d.redes&&d.redes.length){ setRedes(d.redes); setModel(d.model||""); setRemoto(true); setDiag(dg); window.__wifiBusy=false; wifiKeepAwake(false); setSt("ready"); return; }
     }catch(e){ dg.erros.push("remoto: "+((e&&e.message)?e.message:String(e))); }
-    setDiag(dg); setSt("offnet");
+    window.__wifiBusy=false; wifiKeepAwake(false); setDiag(dg); setSt("offnet");
   }
   useEffect(()=>{ carregar(); },[]);
 
@@ -1348,15 +1350,17 @@ function MeuWifi({cliente}){
     if(!ok) throw (le||new Error("não consegui falar com o modem"));
   }
   async function continuarAposGerencia(){
-    setAguardandoGerencia(false); setSalvando(true); setMsg("Aplicando as mudanças… não feche o app.");
+    setAguardandoGerencia(false); setSalvando(true); setMsg("Aplicando as mudanças… não feche o app."); window.__wifiBusy=true; wifiKeepAwake(true);
     try{ await fazerTrocaLocal(); setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha."); setEditar(false); setNome(""); setSenha(""); setTimeout(carregar,3000); }
     catch(e){ setMsg("❌ Não deu pra alterar. "+((e&&e.message)?e.message:"")+" Confirme que conectou na rede de gerência e tente de novo."); }
+    window.__wifiBusy=false; wifiKeepAwake(false);
     setSalvando(false);
   }
   async function salvar(){
     if(nome.trim().length>32){ setMsg("O nome deve ter até 32 caracteres."); return; }
     if(senha.trim().length<8){ setMsg("A senha deve ter no mínimo 8 caracteres."); return; }
     setMsg(""); setSalvando(true);
+    window.__wifiBusy=true; wifiKeepAwake(true);
     try{
       if(remoto){ await api("app-wifi-set",{cpf:cliente.cpf,contrato:cliente.contratoId,novo_nome:nome.trim()||null,nova_senha:senha,bands:"both",model:model}); }
       else if(model==="ax1800v"){
@@ -1457,7 +1461,7 @@ function MeuWifi({cliente}){
             <p style={{color:C.t,fontSize:15,fontWeight:700,margin:0,fontFamily:"monospace"}}>{WIFI_MGMT.pass}</p>
           </div>
           <Btn label={salvando?"Aplicando…":"Já conectei — Continuar"} onClick={continuarAposGerencia} disabled={salvando}/>
-          <button onClick={()=>{ setAguardandoGerencia(false); wifiLiberarGerencia(); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
+          <button onClick={()=>{ setAguardandoGerencia(false); wifiLiberarGerencia(); window.__wifiBusy=false; wifiKeepAwake(false); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
           {msg&&<div style={{background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:10,padding:"10px 14px",color:C.r,fontSize:13}}>{msg}</div>}
         </div>
       )}
@@ -1516,7 +1520,7 @@ export default function App(){
     }catch(e){}
   };
   useEffect(()=>{
-    const onVis=()=>{ if(document.visibilityState==="visible") refreshCliente(); };
+    const onVis=()=>{ if(document.visibilityState==="visible" && !window.__wifiBusy) refreshCliente(); };
     document.addEventListener("visibilitychange",onVis);
     return ()=>document.removeEventListener("visibilitychange",onVis);
   },[conta,cliente]);
