@@ -14,12 +14,7 @@
     "react-dom": "^18.3.1",
     "@capacitor/browser": "^6.0.0",
     "@capacitor/inappbrowser": "^1.0.3",
-    "@capacitor/push-notifications": "^6.0.0",
-    "cordova-plugin-inappbrowser": "^6.0.0",
-    "cordova-plugin-networkinterface": "^2.0.0",
-    "cordova-plugin-wifiwizard2": "^3.1.1",
-    "cordova-plugin-android-permissions": "^1.1.5",
-    "cordova-plugin-insomnia": "^4.3.0"
+    "@capacitor/push-notifications": "^6.0.0"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.0",
