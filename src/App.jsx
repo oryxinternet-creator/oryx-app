@@ -1079,302 +1079,39 @@ const MeusApps=({goBack})=>{
 
 // ─── SUPORTE ───
 
-// ═══════════════════ MEU WI-FI — automação local do modem ═══════════════════
-const WIFI_CREDS = { f6600p:{u:"multipro",p:"multipro"}, ax1800v:{u:"admin",p:"Oryx@2025"} };
-const WIFI_MGMT = { ssid:"ORYX INTERNET (61) 30203761", pass:"Oryx@2025" };
-async function wifiPedirPermissao(){
-  return new Promise(function(res){ try{ var perms=window.cordova&&window.cordova.plugins&&window.cordova.plugins.permissions; if(!perms||!perms.requestPermission) return res(false); perms.requestPermission(perms.ACCESS_FINE_LOCATION, function(st){ res(!!(st&&st.hasPermission)); }, function(){ res(false); }); }catch(e){ res(false); } });
-}
-async function wifiConectarGerencia(){
-  const W=window.WifiWizard2;
-  if(!W||!W.connect) throw new Error("plugin_wifi_ausente");
-  try{ await wifiPedirPermissao(); }catch(e){}
-  await W.connect(WIFI_MGMT.ssid, true, WIFI_MGMT.pass, "WPA");
-}
-function wifiKeepAwake(on){ try{ var i=window.plugins&&window.plugins.insomnia; if(i){ if(on&&i.keepAwake)i.keepAwake(); else if(!on&&i.allowSleepAgain)i.allowSleepAgain(); } }catch(e){} }
-async function wifiLiberarGerencia(){
-  try{ const W=window.WifiWizard2; if(W){ if(W.disconnect){ try{ await W.disconnect(WIFI_MGMT.ssid); }catch(e){ try{ await W.disconnect(); }catch(_){} } } } }catch(e){}
-}
-function wifiSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-function wifiGateways(){
-  return new Promise(function(resolve){
-    var commons=["192.168.1.1","192.168.0.1","192.168.15.1","192.168.18.1","192.168.22.1","192.168.25.1","192.168.100.1","192.168.3.1","10.0.0.1"];
-    try{
-      var ni=window.networkinterface;
-      if(ni&&ni.getWiFiIPAddress){
-        ni.getWiFiIPAddress(function(res){
-          var ip=(res&&(res.ip||res.ipaddr||res))||"";
-          if(typeof ip==="string"&&ip.split(".").length===4){
-            var g=ip.split(".").slice(0,3).join(".")+".1";
-            resolve([g].concat(commons.filter(function(c){return c!==g;})));
-          } else resolve(commons);
-        }, function(){ resolve(commons); });
-      } else resolve(commons);
-    }catch(e){ resolve(commons); }
-  });
-}
-function wifiExec(ref,code){
-  return new Promise(function(resolve){
-    try{ ref.executeScript({code:code}, function(v){ resolve(v&&v[0]); }); }
-    catch(e){ resolve(undefined); }
-  });
-}
-var WIFI_PROBE = "(function(){try{var m='',p='';"
- +"if(document.querySelector('#Frm_Username')){m='f6600p';p='login';}"
- +"else if(document.querySelector('input[name=\"username\"]')){m='ax1800v';p='login';}"
- +"else if(document.querySelector('#localnet')||document.querySelector('#wlanConfig')){m='f6600p';p='main';}"
- +"else if(document.querySelector('#contentIframe')){m='ax1800v';p='main';}"
- +"return JSON.stringify({model:m,page:p});}catch(e){return JSON.stringify({model:'',page:''});}})()";
-var WIFI_LOGOUT = "(function(){try{function clk(doc){if(!doc)return false;var a=[].slice.call(doc.querySelectorAll('a,button,input')).find(function(e){var t=((e.textContent||e.value||'')+'').trim();return /^(sair|logout|log ?out|sign ?out)$/i.test(t);});if(a){a.click();return true;}return false;}if(clk(document))return 'saiu';var f=document.querySelector('#contentIframe');if(f&&f.contentDocument&&clk(f.contentDocument))return 'saiu-iframe';return 'sem-logout';}catch(e){return 'err';}})()";
-
-function wifiLoginCode(model){
-  var c=WIFI_CREDS[model]||{}; var u=JSON.stringify(c.u||""); var p=JSON.stringify(c.p||"");
-  if(model==="f6600p"){
-    return "(function(){try{var u=document.querySelector('#Frm_Username'),p=document.querySelector('#Frm_Password');if(!u)return'x';var s=function(e,v){e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));};s(u,"+u+");s(p,"+p+");document.querySelector('#LoginId').click();return'ok';}catch(e){return'err';}})()";
-  }
-  return "(function(){try{var u=document.querySelector('input[name=\"username\"]'),p=document.querySelector('input[name=\"password\"]');if(!u)return'x';var s=function(e,v){e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));};s(u,"+u+");s(p,"+p+");document.querySelector('input[name=\"save\"]').click();return'ok';}catch(e){return'err';}})()";
-}
-// ---- leitura F6600P (validado) ----
-function _wifiReadF6600P(){
-  window.__wifiOut=null; window.__wifiErr=null;
-  (async function(){
-    try{
-      var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
-      var q=function(s){return document.querySelector(s);};
-      async function wf(fn,t,s){t=t||15000;s=s||300;var t0=Date.now();while(Date.now()-t0<t){try{if(fn())return true;}catch(e){}await sleep(s);}throw new Error("timeout");}
-      if(q("#localnet")&&!q("#wlanConfig")){ q("#localnet").click(); await sleep(700); }
-      await wf(function(){return q("#wlanConfig");}); q("#wlanConfig").click(); await sleep(500);
-      await wf(function(){return q("#WLANSSIDConfBar");});
-      var bar=q("#WLANSSIDConfBar"); if(bar&&!/collapsibleBarExp/.test(bar.className)) bar.click();
-      await wf(function(){var e=q('input[id="KeyPassphrase:0"].inputNorm');return e&&e.offsetParent!==null;});
-      var alvo=[{idx:0,band:"2.4G"},{idx:4,band:"5G"}]; var redes=[];
-      for(var i=0;i<alvo.length;i++){
-        var t=alvo[i];
-        var h=q('[id="instName_WLANSSIDConf:'+t.idx+'"]'); if(h&&!/instNameExp/.test(h.className)) h.click(); await sleep(700);
-        var e=q('[id="ESSID:'+t.idx+'"]'); var k=q('input[id="KeyPassphrase:'+t.idx+'"].inputNorm');
-        redes.push({band:t.band, ssid:e?e.value.trim():null, senha:k?k.value:null});
-      }
-      window.__wifiOut={redes:redes};
-    }catch(e){ window.__wifiErr=String(e.message||e); }
-  })();
-}
-// ---- leitura AX1800V (validado) ----
-function _wifiReadAX1800V(){
-  window.__wifiOut=null; window.__wifiErr=null;
-  (async function(){
-    try{
-      var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
-      var A=function(){return [].slice.call(document.querySelectorAll("a"));};
-      var idoc=function(){var f=document.querySelector("#contentIframe");return f&&f.contentDocument;};
-      async function wf(fn,t,s){t=t||15000;s=s||300;var t0=Date.now();while(Date.now()-t0<t){try{if(fn())return true;}catch(e){}await sleep(s);}throw new Error("timeout");}
-      async function abrir(bl,re){
-        var ab=A().some(function(e){return (e.textContent||"").trim()==="2.4GHz"&&e.offsetParent!==null;});
-        if(!ab){var w=A().find(function(e){return (e.textContent||"").trim()==="WLAN";});if(w)w.click();}
-        await sleep(600);
-        var b=A().find(function(e){return (e.textContent||"").trim()===bl&&e.offsetParent!==null;}); if(b)b.click();
-        await sleep(800);
-        var r=new RegExp(re); var it=A().filter(function(e){return r.test((e.textContent||"").trim())&&e.offsetParent!==null;}); if(it[0])it[0].click();
-        await sleep(400);
-      }
-      var alvo=[{band:"2.4G",label:"2.4GHz"},{band:"5G",label:"5GHz"}]; var redes=[];
-      for(var i=0;i<alvo.length;i++){
-        var t=alvo[i];
-        await abrir(t.label,"Configura.*B");
-        await wf(function(){var d=idoc();var e=d&&d.querySelector('input[name="ssid"]');return e&&e.offsetParent!==null;});
-        var nome=idoc().querySelector('input[name="ssid"]').value;
-        await abrir(t.label,"^Seguran");
-        await wf(function(){var d=idoc();var e=d&&d.querySelector("#wpapsk");return e&&e.offsetParent!==null;});
-        var senha=idoc().querySelector("#wpapsk").value;
-        redes.push({band:t.band, ssid:nome, senha:senha});
-      }
-      window.__wifiOut={redes:redes};
-    }catch(e){ window.__wifiErr=String(e.message||e); }
-  })();
-}
-// ---- troca F6600P: só 2.4G (5G sincroniza) ----
-function _wifiChangeF6600P(){
-  window.__wifiOut=null; window.__wifiErr=null;
-  (async function(){
-    try{
-      var NOME=window.__wifiNome, SENHA=window.__wifiSenha;
-      var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
-      var q=function(s){return document.querySelector(s);};
-      async function wf(fn,t,s){t=t||15000;s=s||300;var t0=Date.now();while(Date.now()-t0<t){try{if(fn())return true;}catch(e){}await sleep(s);}throw new Error("timeout");}
-      var setVal=function(el,v){el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}));};
-      if(q("#localnet")&&!q("#wlanConfig")){ q("#localnet").click(); await sleep(700); }
-      await wf(function(){return q("#wlanConfig");}); q("#wlanConfig").click(); await sleep(500);
-      await wf(function(){return q("#WLANSSIDConfBar");});
-      var bar=q("#WLANSSIDConfBar"); if(bar&&!/collapsibleBarExp/.test(bar.className)) bar.click();
-      await wf(function(){var e=q('input[id="KeyPassphrase:0"].inputNorm');return e&&e.offsetParent!==null;});
-      var idx=0;
-      var h=q('[id="instName_WLANSSIDConf:'+idx+'"]'); if(h&&!/instNameExp/.test(h.className)) h.click(); await sleep(500);
-      if(NOME){ var essid=q('[id="ESSID:'+idx+'"]'); if(essid) setVal(essid,"ORYX-"+NOME); }
-      var key=q('input[id="KeyPassphrase:'+idx+'"].inputNorm'); setVal(key,SENHA);
-      var mir=q('input[id="KeyPassphrase:'+idx+'"].PostIgnore'); if(mir) setVal(mir,SENHA);
-      q('[id="Btn_apply_WLANSSIDConf:'+idx+'"]').click(); await sleep(900);
-      var ok=q("#confirmOK"); if(ok&&ok.offsetParent!==null) ok.click();
-      await sleep(2500);
-      window.__wifiOut={applied:[{band:"2.4G",nome:NOME?("ORYX-"+NOME):"(inalterado)"}], nota:"A rede 5G sincroniza automaticamente."};
-    }catch(e){ window.__wifiErr=String(e.message||e); }
-  })();
-}
-// ---- troca AX1800V: as duas bandas ----
-function _wifiChangeAX1800V(){
-  window.__wifiOut=null; window.__wifiErr=null;
-  (async function(){
-    try{
-      var NOME=window.__wifiNome, SENHA=window.__wifiSenha;
-      var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
-      var A=function(){return [].slice.call(document.querySelectorAll("a"));};
-      var idoc=function(){var f=document.querySelector("#contentIframe");return f&&f.contentDocument;};
-      async function wf(fn,t,s){t=t||20000;s=s||300;var t0=Date.now();while(Date.now()-t0<t){try{if(fn())return true;}catch(e){}await sleep(s);}throw new Error("timeout");}
-      async function abrir(bl,re){
-        var ab=A().some(function(e){return (e.textContent||"").trim()==="2.4GHz"&&e.offsetParent!==null;});
-        if(!ab){var w=A().find(function(e){return (e.textContent||"").trim()==="WLAN";});if(w)w.click();}
-        await sleep(600);
-        var b=A().find(function(e){return (e.textContent||"").trim()===bl&&e.offsetParent!==null;}); if(b)b.click();
-        await sleep(800);
-        var r=new RegExp(re); var it=A().filter(function(e){return r.test((e.textContent||"").trim())&&e.offsetParent!==null;}); if(it[0])it[0].click();
-        await sleep(400);
-      }
-      async function okE15(){
-        await wf(function(){var d=idoc();return d&&/[Ss]ucesso|[Ss]uccess/.test((d.body&&d.body.innerText)||"");},20000).catch(function(){});
-        await sleep(15000);
-      }
-      var alvo=[{band:"2.4G",label:"2.4GHz",suf:""},{band:"5G",label:"5GHz",suf:"_5G"}]; var applied=[];
-      for(var i=0;i<alvo.length;i++){
-        var t=alvo[i]; var nomeB=NOME?("ORYX-"+NOME+t.suf):null;
-        if(nomeB){
-          await abrir(t.label,"Configura.*B");
-          await wf(function(){var d=idoc();var e=d&&d.querySelector('input[name="ssid"]');return e&&e.offsetParent!==null;});
-          (function(nome){var d=idoc();var s=d.querySelector('input[name="ssid"]');s.value=nome;s.dispatchEvent(new Event("input",{bubbles:true}));s.dispatchEvent(new Event("change",{bubbles:true}));d.querySelector('input[name="save"]').click();})(nomeB);
-          await okE15();
-        }
-        await abrir(t.label,"^Seguran");
-        await wf(function(){var d=idoc();var e=d&&d.querySelector("#wpapsk");return e&&e.offsetParent!==null;});
-        (function(pass){var d=idoc();var k=d.querySelector("#wpapsk");k.value=pass;k.dispatchEvent(new Event("input",{bubbles:true}));k.dispatchEvent(new Event("change",{bubbles:true}));d.querySelector('input[name="save"]').click();})(SENHA);
-        await okE15();
-        applied.push({band:t.band, nome:nomeB||"(inalterado)"});
-      }
-      window.__wifiOut={applied:applied};
-    }catch(e){ window.__wifiErr=String(e.message||e); }
-  })();
-}
-function _wifiReader(model){ return model==="ax1800v"?_wifiReadAX1800V:_wifiReadF6600P; }
-function _wifiChanger(model){ return model==="ax1800v"?_wifiChangeAX1800V:_wifiChangeF6600P; }
-// ---- orquestrador: abre modem escondido, faz login e executa acao ----
-function wifiDriveModem(gateway, acao, params){
-  return new Promise(function(resolve,reject){
-    var IAB=window.cordova&&window.cordova.InAppBrowser;
-    if(!IAB) return reject(new Error("sem_app"));
-    var ref,done=false,submitted=false,acting=false,model=(params&&params.model)||"";
-    var overall=(acao==="trocar")?170000:90000;
-    function fin(err,val){ if(done)return; done=true; clearTimeout(tOver); clearTimeout(tFirst); try{ref&&ref.close();}catch(e){} err?reject(err):resolve(val); }
-    var tOver=setTimeout(function(){ fin(new Error("timeout")); }, overall);
-    var tFirst=setTimeout(function(){ fin(new Error("sem_resposta")); }, 12000);
-    try{ ref=IAB.open("http://"+gateway+"/","_blank","hidden=yes,location=no,zoom=no"); }catch(e){ return fin(e); }
-    ref.addEventListener("loaderror", function(){ fin(new Error("loaderror")); });
-    ref.addEventListener("loadstop", function(){ (async function(){
-      try{
-        clearTimeout(tFirst);
-        var st=await wifiExec(ref,WIFI_PROBE); var info={}; try{ info=JSON.parse(st||"{}"); }catch(e){}
-        if(info.model) model=info.model;
-        if(info.page==="login"){
-          if(submitted) return; submitted=true;
-          await wifiExec(ref,wifiLoginCode(model));
-          return;
-        }
-        if(info.page==="main"){
-          if(acting) return; acting=true;
-          if(acao==="ler"){
-            await wifiExec(ref,"("+_wifiReader(model).toString()+")()");
-          } else {
-            var pre="window.__wifiNome="+JSON.stringify(params&&params.nome!=null?params.nome:null)+";window.__wifiSenha="+JSON.stringify((params&&params.senha)||"")+";";
-            await wifiExec(ref, pre+"("+_wifiChanger(model).toString()+")()");
-          }
-          var t0=Date.now(), lim=(acao==="trocar")?160000:80000;
-          while(Date.now()-t0<lim){
-            var rs=await wifiExec(ref,"window.__wifiOut?JSON.stringify(window.__wifiOut):(window.__wifiErr?'ERR:'+window.__wifiErr:'')");
-            if(rs){ if(String(rs).indexOf("ERR:")===0){ try{ await wifiExec(ref,WIFI_LOGOUT); await wifiSleep(1500); }catch(e){} return fin(new Error(String(rs).slice(4))); } var out={}; try{ out=JSON.parse(rs); }catch(e){} out.model=model; try{ await wifiExec(ref,WIFI_LOGOUT); var lt0=Date.now(); while(Date.now()-lt0<9000){ var back=await wifiExec(ref,"(document.querySelector('#Frm_Username')||document.querySelector('input[name=username]'))?'1':''"); if(back){ await wifiSleep(500); break; } await wifiSleep(500); } }catch(e){} return fin(null,out); }
-            await wifiSleep(700);
-          }
-          return fin(new Error("timeout_acao"));
-        }
-      }catch(e){ fin(e); }
-    })(); });
-  });
-}
-// ─── COMPONENTE DA ABA ───
+// ─── MEU WI-FI (via GenieACS / n8n — TR-069) ───
 function MeuWifi({cliente}){
-  const [st,setSt]=useState("detect");
+  const [st,setSt]=useState("load");        // load | ready | erro
   const [redes,setRedes]=useState([]);
-  const [model,setModel]=useState("");
-  const [gw,setGw]=useState("");
-  const [remoto,setRemoto]=useState(false);
   const [editar,setEditar]=useState(false);
   const [nome,setNome]=useState("");
   const [senha,setSenha]=useState("");
   const [ver,setVer]=useState(false);
   const [salvando,setSalvando]=useState(false);
   const [msg,setMsg]=useState("");
-  const [verS,setVerS]=useState({});
-  const [diag,setDiag]=useState(null);
-  const [aguardandoGerencia,setAguardandoGerencia]=useState(false);
-  const [verDiag,setVerDiag]=useState(false);
+  const [erroMsg,setErroMsg]=useState("");
 
   async function carregar(){
-    setSt("detect"); setMsg("");
-    window.__wifiBusy=true; wifiKeepAwake(true);
-    const dg={ cordova: !!(window.cordova), iab: !!(window.cordova&&window.cordova.InAppBrowser), ni: !!(window.networkinterface), gws:[], erros:[] };
+    setSt("load"); setMsg("");
     try{
-      const gws=await wifiGateways(); dg.gws=gws;
-      for(let i=0;i<gws.length;i++){
-        try{ const r=await wifiDriveModem(gws[i],"ler",null);
-          if(r&&r.redes&&r.redes.length){ setRedes(r.redes); setModel(r.model||""); setGw(gws[i]); setRemoto(false); setDiag(dg); window.__wifiBusy=false; wifiKeepAwake(false); setSt("ready"); return; }
-          dg.erros.push(gws[i]+": sem redes");
-        }catch(e){ dg.erros.push(gws[i]+": "+((e&&e.message)?e.message:"erro")); }
-      }
-    }catch(e){ dg.erros.push("gateways: "+((e&&e.message)?e.message:String(e))); }
-    try{ const d=await api("app-wifi-get",{cpf:cliente.cpf,contrato:cliente.contratoId});
-      if(d&&d.redes&&d.redes.length){ setRedes(d.redes); setModel(d.model||""); setRemoto(true); setDiag(dg); window.__wifiBusy=false; wifiKeepAwake(false); setSt("ready"); return; }
-    }catch(e){ dg.erros.push("remoto: "+((e&&e.message)?e.message:String(e))); }
-    window.__wifiBusy=false; wifiKeepAwake(false); setDiag(dg); setSt("offnet");
+      const d=await api("app-wifi-get",{cpf:cliente.cpf,contrato:cliente.contratoId});
+      if(d&&d.ok!==false&&Array.isArray(d.redes)){ setRedes(d.redes); setSt("ready"); return; }
+      throw new Error((d&&(d.mensagem||d.error))||"resposta inválida");
+    }catch(e){ setErroMsg((e&&e.message)?e.message:"falha"); setSt("erro"); }
   }
   useEffect(()=>{ carregar(); },[]);
 
-  async function fazerTrocaLocal(){
-    const gws2=await wifiGateways();
-    let ok=false, le=null;
-    for(let i=0;i<gws2.length;i++){ try{ await wifiDriveModem(gws2[i],"trocar",{nome:nome.trim()||null,senha:senha,model:model}); ok=true; break; }catch(e){ le=e; } }
-    try{ await wifiLiberarGerencia(); }catch(e){}
-    if(!ok) throw (le||new Error("não consegui falar com o modem"));
-  }
-  async function continuarAposGerencia(){
-    setAguardandoGerencia(false); setSalvando(true); setMsg("Aplicando as mudanças… não feche o app."); window.__wifiBusy=true; wifiKeepAwake(true);
-    try{ await fazerTrocaLocal(); setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha."); setEditar(false); setNome(""); setSenha(""); setTimeout(carregar,3000); }
-    catch(e){ setMsg("❌ Não deu pra alterar. "+((e&&e.message)?e.message:"")+" Confirme que conectou na rede de gerência e tente de novo."); }
-    window.__wifiBusy=false; wifiKeepAwake(false);
-    setSalvando(false);
-  }
   async function salvar(){
     if(nome.trim().length>32){ setMsg("O nome deve ter até 32 caracteres."); return; }
     if(senha.trim().length<8){ setMsg("A senha deve ter no mínimo 8 caracteres."); return; }
     setMsg(""); setSalvando(true);
-    window.__wifiBusy=true; wifiKeepAwake(true);
     try{
-      if(remoto){ await api("app-wifi-set",{cpf:cliente.cpf,contrato:cliente.contratoId,novo_nome:nome.trim()||null,nova_senha:senha,bands:"both",model:model}); }
-      else if(model==="ax1800v"){
-        setMsg("Conectando na rede de gerência… toque em \"Conectar\" no aviso do Android.");
-        let auto=false;
-        try{ await wifiConectarGerencia(); await wifiSleep(3500); auto=true; }catch(eg){ auto=false; }
-        if(!auto){ setSalvando(false); setAguardandoGerencia(true); return; }
-        await fazerTrocaLocal();
-      }
-      else{ await wifiDriveModem(gw,"trocar",{nome:nome.trim()||null,senha:senha,model:model}); }
-      setMsg("✅ Wi-Fi atualizado! Reconecte seus aparelhos (e este celular) com o novo nome/senha.");
+      const d=await api("app-wifi-set",{cpf:cliente.cpf,contrato:cliente.contratoId,novo_nome:nome.trim()||null,nova_senha:senha});
+      if(d&&d.ok===false) throw new Error((d&&(d.mensagem||d.error))||"não aplicou");
+      setMsg("✅ Pedido enviado! A troca pode levar até 1 minuto pra valer. Depois reconecte seus aparelhos com o novo nome e senha.");
       setEditar(false); setNome(""); setSenha("");
-      setTimeout(carregar,3000);
-    }catch(e){ await wifiLiberarGerencia(); setMsg("❌ Não deu pra alterar agora. "+((e&&e.message)?e.message:"")+" Verifique a conexão e tente de novo."); }
+      setTimeout(carregar,4000);
+    }catch(e){ setMsg("❌ Não deu pra alterar agora. "+((e&&e.message)?e.message:"")+" Tente de novo em instantes."); }
     setSalvando(false);
   }
 
@@ -1383,59 +1120,45 @@ function MeuWifi({cliente}){
   return (
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:16}}>
       <h2 style={{color:C.t,fontSize:20,fontWeight:800,margin:0}}>Meu Wi-Fi</h2>
-      <p style={{color:C.s,fontSize:13,margin:"-6px 0 0"}}>Veja e altere o nome e a senha da sua rede</p>
+      <p style={{color:C.s,fontSize:13,margin:"-6px 0 0"}}>Altere o nome e a senha da sua rede — de qualquer lugar</p>
 
-      {st==="detect"&&<Spinner label="Procurando seu modem na rede…"/>}
+      {st==="load"&&<Spinner label="Carregando sua rede…"/>}
 
-      {st==="offnet"&&(
+      {st==="erro"&&(
         <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"22px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,textAlign:"center"}}>
           <div style={{width:64,height:64,borderRadius:18,background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📶</div>
-          <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Conecte-se à sua rede</p>
-          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.55}}>Para gerenciar o Wi-Fi pelo app, você precisa estar <b>conectado na rede da Oryx aqui na sua casa</b>. Se você está fora ou em dados móveis, conecte-se ao seu Wi-Fi e tente de novo.</p>
+          <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Não conseguimos carregar sua rede</p>
+          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.55}}>Pode ser instabilidade momentânea. Tente de novo em instantes ou fale com o suporte.</p>
           <button onClick={carregar} style={{marginTop:8,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Tentar de novo</button>
-          <a href={"https://wa.me/556130203761?text="+encodeURIComponent("Olá! Quero trocar o nome/senha do meu Wi-Fi.")} style={{color:C.s,fontSize:13,textDecoration:"underline",textUnderlineOffset:3}}>Prefiro falar com o suporte</a>
-          <button onClick={()=>setVerDiag(v=>!v)} style={{background:"none",border:"none",color:C.m,fontSize:11,cursor:"pointer",marginTop:4}}>Detalhes técnicos</button>
-          {verDiag&&diag&&<pre style={{width:"100%",boxSizing:"border-box",background:C.surf2,border:`1px solid ${C.line}`,borderRadius:8,padding:10,color:C.s,fontSize:10.5,whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,textAlign:"left"}}>{"cordova: "+diag.cordova+"  |  InAppBrowser: "+diag.iab+"  |  networkinterface: "+diag.ni+"\n\ngateways tentados:\n"+(diag.gws||[]).join(", ")+"\n\nresultado:\n"+(diag.erros||[]).join("\n")}</pre>}
+          <a href={"https://wa.me/556130203761?text="+encodeURIComponent("Olá! Quero trocar o nome/senha do meu Wi-Fi.")} style={{color:C.s,fontSize:13,textDecoration:"underline",textUnderlineOffset:3}}>Falar com o suporte</a>
         </div>
       )}
 
       {st==="ready"&&!editar&&(
         <>
-          {remoto&&<div style={{background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:10,padding:"8px 12px",color:C.p,fontSize:12}}>Acesso remoto</div>}
           {redes.map((r,i)=>(
-            <div key={i} style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:"16px 16px",display:"flex",flexDirection:"column",gap:8}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span style={{color:C.s,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Rede {r.band}</span>
-              </div>
-              <div>
-                <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Nome (SSID)</p>
-                <p style={{color:C.t,fontSize:16,fontWeight:700,margin:0,wordBreak:"break-all"}}>{r.ssid||"—"}</p>
-              </div>
-              <div>
-                <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Senha</p>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <p style={{color:C.t,fontSize:16,fontWeight:700,margin:0,fontFamily:"monospace",letterSpacing:1}}>{verS[i]?(r.senha||"—"):"••••••••"}</p>
-                  <button onClick={()=>setVerS(s=>({...s,[i]:!s[i]}))} style={{background:"none",border:"none",color:C.s,fontSize:12,cursor:"pointer",textDecoration:"underline"}}>{verS[i]?"ocultar":"ver"}</button>
-                </div>
-              </div>
+            <div key={i} style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:"16px",display:"flex",flexDirection:"column",gap:6}}>
+              <span style={{color:C.s,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Rede {r.band}</span>
+              <p style={{color:C.s,fontSize:11,margin:"2px 0 0"}}>Nome (SSID)</p>
+              <p style={{color:C.t,fontSize:16,fontWeight:700,margin:0,wordBreak:"break-all"}}>{r.ssid||"—"}</p>
             </div>
           ))}
+          <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"11px 14px"}}>
+            <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.55}}>🔒 Por segurança, a senha atual não pode ser exibida. Você pode definir uma senha nova a qualquer momento.</p>
+          </div>
           <Btn label="Alterar nome e senha" onClick={()=>{ setEditar(true); setNome(""); setSenha(""); setMsg(""); }}/>
           {msg&&<div style={{background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"10px 14px",color:C.t,fontSize:13}}>{msg}</div>}
           <button onClick={carregar} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3,alignSelf:"center"}}>Atualizar</button>
         </>
       )}
 
-      {st==="ready"&&editar&&!aguardandoGerencia&&(
+      {st==="ready"&&editar&&(
         <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"20px 18px",display:"flex",flexDirection:"column",gap:14}}>
           <h3 style={{color:C.t,fontSize:16,fontWeight:800,margin:0}}>Alterar Wi-Fi</h3>
-          <p style={{color:C.s,fontSize:12,margin:"-6px 0 0",lineHeight:1.5}}>O nome recebe o prefixo <b>ORYX-</b>. {model==="ax1800v"?"As redes 2.4G e 5G serão alteradas.":"A rede 5G é sincronizada automaticamente."}</p>
+          <p style={{color:C.s,fontSize:12,margin:"-6px 0 0",lineHeight:1.5}}>O nome e a senha vão para as duas redes (2.4G e 5G). A rede 5G recebe o sufixo <b>-5G</b>. A troca pode levar até 1 minuto.</p>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Novo nome (opcional)</label>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{color:C.s,fontSize:15,fontWeight:700}}>ORYX-</span>
-              <input value={nome} onChange={e=>setNome(e.target.value)} maxLength={32} placeholder="MinhaCasa" style={inputStyle}/>
-            </div>
+            <input value={nome} onChange={e=>setNome(e.target.value)} maxLength={32} placeholder="Ex.: Casa da Ana" style={inputStyle}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Nova senha</label>
@@ -1445,29 +1168,14 @@ function MeuWifi({cliente}){
             </div>
           </div>
           {msg&&<div style={{background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:10,padding:"10px 14px",color:C.r,fontSize:13}}>{msg}</div>}
-          <Btn label={salvando?"Aplicando… (não feche o app)":"Salvar alterações"} onClick={salvar} disabled={salvando||senha.trim().length<8}/>
+          <Btn label={salvando?"Enviando…":"Salvar alterações"} onClick={salvar} disabled={salvando||senha.trim().length<8}/>
           <button onClick={()=>{ setEditar(false); setMsg(""); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
-          {salvando&&<p style={{color:C.s,fontSize:11.5,margin:0,textAlign:"center",lineHeight:1.5}}>Isso pode levar até 1 minuto. Sua conexão vai cair por alguns segundos quando o Wi-Fi trocar — é normal.</p>}
-        </div>
-      )}
-      {aguardandoGerencia&&(
-        <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"20px 18px",display:"flex",flexDirection:"column",gap:12}}>
-          <h3 style={{color:C.t,fontSize:16,fontWeight:800,margin:0}}>Conecte na rede de gerência</h3>
-          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Pra trocar sem cair a conexão, conecte este celular na rede abaixo (nas configurações de Wi-Fi do Android). Depois volte aqui e toque em Continuar.</p>
-          <div style={{background:C.surf2,borderRadius:12,padding:"12px 14px"}}>
-            <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Rede</p>
-            <p style={{color:C.t,fontSize:15,fontWeight:700,margin:"0 0 8px",wordBreak:"break-all"}}>{WIFI_MGMT.ssid}</p>
-            <p style={{color:C.s,fontSize:11,margin:"0 0 2px"}}>Senha</p>
-            <p style={{color:C.t,fontSize:15,fontWeight:700,margin:0,fontFamily:"monospace"}}>{WIFI_MGMT.pass}</p>
-          </div>
-          <Btn label={salvando?"Aplicando…":"Já conectei — Continuar"} onClick={continuarAposGerencia} disabled={salvando}/>
-          <button onClick={()=>{ setAguardandoGerencia(false); wifiLiberarGerencia(); window.__wifiBusy=false; wifiKeepAwake(false); }} disabled={salvando} style={{background:"none",border:"none",color:C.s,fontSize:13,cursor:"pointer",alignSelf:"center"}}>Cancelar</button>
-          {msg&&<div style={{background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.3)",borderRadius:10,padding:"10px 14px",color:C.r,fontSize:13}}>{msg}</div>}
         </div>
       )}
     </div>
   );
 }
+
 
 const TABS=["home","boleto","velocidade","apps","wifi","suporte"];
 const TLABELS={home:"Início",boleto:"Boleto",velocidade:"Velocidade",apps:"Meus Apps",wifi:"Wi-Fi",suporte:"Suporte"};
@@ -1520,7 +1228,7 @@ export default function App(){
     }catch(e){}
   };
   useEffect(()=>{
-    const onVis=()=>{ if(document.visibilityState==="visible" && !window.__wifiBusy) refreshCliente(); };
+    const onVis=()=>{ if(document.visibilityState==="visible") refreshCliente(); };
     document.addEventListener("visibilitychange",onVis);
     return ()=>document.removeEventListener("visibilitychange",onVis);
   },[conta,cliente]);
