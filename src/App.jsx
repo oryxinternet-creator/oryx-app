@@ -466,6 +466,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
   const atalhos=[
     {emoji:"💳",label:"2ª via",screen:"boleto"},
     {emoji:"🔓",label:"Desbloqueio",screen:"desbloqueio"},
+    {emoji:"📶",label:"Meu Wi-Fi",screen:"wifi"},
     {emoji:"📊",label:"Consumo",screen:"consumo"},
     {emoji:"✍️",label:"Contrato",screen:"contrato"},
     {emoji:"⚡",label:"Velocidade",screen:"velocidade"},
@@ -1155,7 +1156,7 @@ function MeuWifi({cliente}){
       {st==="ready"&&editar&&(
         <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"20px 18px",display:"flex",flexDirection:"column",gap:14}}>
           <h3 style={{color:C.t,fontSize:16,fontWeight:800,margin:0}}>Alterar Wi-Fi</h3>
-          <p style={{color:C.s,fontSize:12,margin:"-6px 0 0",lineHeight:1.5}}>O nome e a senha vão para as duas redes (2.4G e 5G). A rede 5G recebe o sufixo <b>-5G</b>. A troca pode levar até 1 minuto.</p>
+          <p style={{color:C.s,fontSize:12,margin:"-6px 0 0",lineHeight:1.5}}>Seu nome vira <b>ORYX-</b>seu-nome (e a rede 5G ganha <b>_5G</b> no fim). Vale pras duas redes. A troca pode levar até 1 minuto.</p>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>Novo nome (opcional)</label>
             <input value={nome} onChange={e=>setNome(e.target.value)} maxLength={32} placeholder="Ex.: Casa da Ana" style={inputStyle}/>
