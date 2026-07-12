@@ -259,7 +259,7 @@ const Login = ({onAuth,theme,toggleTheme}) => {
         </div>
         {erro&&<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:10,padding:"10px 14px",color:C.r,fontSize:13}}>⚠️ {erro}</div>}
         <Btn label={loading?"Entrando...":"Entrar →"} onClick={login} disabled={loading||onlyDigits(cpf).length<11||!senha.trim()}/>
-        <button onClick={async()=>{const u="https://oryx.sgp.tsmx.com.br/central/alterarsenha/";try{await Browser.open({url:u,presentationStyle:"fullscreen"});}catch(e){window.open(u,"_blank");}}} style={{background:"none",border:"none",cursor:"pointer",color:C.s,fontSize:13,padding:"2px 0 0",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>Esqueci / quero alterar minha senha</button>
+        <button onClick={()=>abrirNoApp("https://oryx.sgp.tsmx.com.br/accounts/central/recuperar_senha/")} style={{background:"none",border:"none",cursor:"pointer",color:C.s,fontSize:13,padding:"2px 0 0",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>Esqueci minha senha</button>
       </div>
     </div>
   );
