@@ -32,9 +32,9 @@ jobs:
 
       - name: Ajustar SDK de destino para 35 + AGP/Gradle
         run: |
-          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 35/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 35/' android/variables.gradle
-          sed -i 's/com.android.tools.build:gradle:8.2.1/com.android.tools.build:gradle:8.6.1/' android/build.gradle
-          sed -i 's#gradle-8.2.1-all.zip#gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 36/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 36/' android/variables.gradle
+          sed -i 's/com.android.tools.build:gradle:8.2.1/com.android.tools.build:gradle:8.9.1/' android/build.gradle
+          sed -i 's#gradle-8.2.1-all.zip#gradle-8.11.1-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Definir versionCode unico
         run: sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/" android/app/build.gradle
