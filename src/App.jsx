@@ -24,12 +24,18 @@ import { Browser } from "@capacitor/browser";
 
 const API_BASE = "https://n8n02.proativaia.com.br/webhook"; // TODO Oryx: trocar pela base de webhooks do n8n da Oryx
 
+// Chave de sessão devolvida pelo app-login. Vai em todo pedido; o n8n só responde
+// sobre o CPF e os contratos que estão dentro dela.
+let SESSAO = "";
+let aoExpirarSessao = () => {};
+
 const api = async (path, body) => {
   const r = await fetch(`${API_BASE}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify({ ...(body || {}), ...(SESSAO ? { sessao: SESSAO } : {}) }),
   });
+  if (r.status === 401 && path !== "app-login") { aoExpirarSessao(); throw new Error("Sessão expirada"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
   return await r.json();
 };
@@ -205,9 +211,9 @@ const corStatus = (st="") => {
 };
 
 // ─── LOGIN (CPF/CNPJ + senha) ───
-const Login = ({onAuth,theme,toggleTheme}) => {
+const Login = ({onAuth,theme,toggleTheme,aviso=""}) => {
   const [cpf,setCpf]=useState(""); const [senha,setSenha]=useState(""); const [loading,setLoading]=useState(false);
-  const [focused,setFocused]=useState(false); const [focSenha,setFocSenha]=useState(false); const [verSenha,setVerSenha]=useState(false); const [erro,setErro]=useState("");
+  const [focused,setFocused]=useState(false); const [focSenha,setFocSenha]=useState(false); const [verSenha,setVerSenha]=useState(false); const [erro,setErro]=useState(aviso);
 
   const login=async()=>{
     const c=onlyDigits(cpf);
@@ -219,9 +225,9 @@ const Login = ({onAuth,theme,toggleTheme}) => {
       if(d&&d.ok===false&&d.motivo==="senha_incorreta"){
         setErro("Senha incorreta. Verifique e tente novamente.");
       }else if(d&&d.ok!==false&&Array.isArray(d.contratos)&&d.contratos.length){
-        onAuth({cpf:c,senha:senha,nome:d.nome||"Cliente",contratos:d.contratos});
+        onAuth({cpf:c,senha:senha,sessao:d.sessao||"",nome:d.nome||"Cliente",contratos:d.contratos});
       }else if(d&&d.ok!==false&&(d.contratoId||d.nome)){
-        onAuth({cpf:c,senha:senha,nome:d.nome||"Cliente",contratos:[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia}]});
+        onAuth({cpf:c,senha:senha,sessao:d.sessao||"",nome:d.nome||"Cliente",contratos:[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia}]});
       }else{
         setErro("CPF/CNPJ não encontrado. Verifique e tente novamente.");
       }
@@ -762,7 +768,7 @@ const Notas = ({goBack,cliente}) => {
       setLista(arr); setDemo(false);
     }catch(e){ setLista("erro"); }
   })();},[]);
-  const baixar=(id)=>{ abrir(API_BASE+"/app-nota-pdf?id="+encodeURIComponent(id)+"&contrato="+encodeURIComponent(cliente.contratoId)); };
+  const baixar=(id)=>{ abrir(API_BASE+"/app-nota-pdf?id="+encodeURIComponent(id)+"&contrato="+encodeURIComponent(cliente.contratoId)+"&sessao="+encodeURIComponent(SESSAO)); };
   return (
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
       <Back onClick={goBack}/>
@@ -1211,7 +1217,8 @@ export default function App(){
   const [cliente,setCliente]=useState(null);
   const [conta,setConta]=useState(null);
   const mkCliente=(a,ct)=>({cpf:a.cpf,senha:a.senha||"",demo:!!a.demo,nome:a.nome,contratoId:ct.contratoId,clienteId:ct.clienteId,plano:ct.plano||"Internet",status:ct.status||"Ativo",vencimento:ct.vencimento||null,valorAberto:ct.valorAberto||null,titulos:ct.titulos||0,pendencia:!!ct.pendencia,termoAssinado:!!ct.termoAssinado,termoUrl:ct.termoUrl||"",termoPdf:ct.termoPdf||""});
-  const onAuth=(a)=>{ setConta(a); if(a.contratos.length===1){ setCliente(mkCliente(a,a.contratos[0])); setScreen("main"); salvarSessao(a,a.contratos[0].contratoId); registrarPush(a.cpf,a.contratos[0].contratoId); } else { setScreen("selecao"); salvarSessao(a,null); } };
+  const [aviso,setAviso]=useState("");
+  const onAuth=(a)=>{ SESSAO=a.sessao||""; setAviso(""); setConta(a); if(a.contratos.length===1){ setCliente(mkCliente(a,a.contratos[0])); setScreen("main"); salvarSessao(a,a.contratos[0].contratoId); registrarPush(a.cpf,a.contratos[0].contratoId); } else { setScreen("selecao"); salvarSessao(a,null); } };
   const escolher=(ct)=>{ setCliente(mkCliente(conta,ct)); setScreen("main"); salvarSessao(conta,ct.contratoId); registrarPush(conta.cpf,ct.contratoId); };
   const refreshCliente=async()=>{
     if(!conta||!cliente)return;
@@ -1221,7 +1228,9 @@ export default function App(){
       if(d&&d.ok!==false&&Array.isArray(d.contratos)&&d.contratos.length) contratos=d.contratos;
       else if(d&&d.ok!==false&&(d.contratoId||d.nome)) contratos=[{contratoId:d.contratoId,clienteId:d.clienteId,plano:d.plano,status:d.status,vencimento:d.vencimento,valorAberto:d.valorAberto,titulos:d.titulos,pendencia:d.pendencia,termoAssinado:d.termoAssinado,termoUrl:d.termoUrl,termoPdf:d.termoPdf}];
       if(!contratos)return;
-      const nc={...conta,nome:d.nome||conta.nome,contratos};
+      // cada atualização renova a chave de sessão (mais 30 dias)
+      const nc={...conta,nome:d.nome||conta.nome,contratos,sessao:d.sessao||conta.sessao||""};
+      SESSAO=nc.sessao;
       setConta(nc);
       const ct=contratos.find(x=>String(x.contratoId)===String(cliente.contratoId))||contratos[0];
       setCliente(mkCliente(nc,ct));
@@ -1237,6 +1246,7 @@ export default function App(){
   useEffect(()=>{
     const s=lerSessao();
     if(s&&s.conta&&Array.isArray(s.conta.contratos)&&s.conta.contratos.length){
+      SESSAO=s.conta.sessao||"";
       setConta(s.conta);
       const ct=s.contratoId?s.conta.contratos.find(x=>String(x.contratoId)===String(s.contratoId)):null;
       if(ct){ setCliente(mkCliente(s.conta,ct)); setScreen("main"); registrarPush(s.conta.cpf,ct.contratoId); }
@@ -1248,7 +1258,11 @@ export default function App(){
   const toggleTheme=()=>setTheme(t=>t==="light"?"dark":"light");
   const goTo=(s)=>{if(TABS.includes(s)){setTab(s);setScreen("main");}else setScreen(s);};
   const goBack=()=>{setScreen("main");setTab("home");};
-  const goLogin=()=>{limparSessao();setScreen("login");setTab("home");setCliente(null);setConta(null);};
+  const goLogin=()=>{SESSAO="";limparSessao();setScreen("login");setTab("home");setCliente(null);setConta(null);};
+  // n8n recusou a chave (venceu ou foi trocada): volta para o login com um aviso
+  aoExpirarSessao=()=>{ goLogin(); setAviso("Sua sessão expirou. Entre novamente."); };
+  // quem já estava logado antes desta versão ainda não tem chave: busca uma agora
+  useEffect(()=>{ if(conta&&cliente&&!conta.sessao) refreshCliente(); },[conta&&conta.sessao,cliente&&cliente.contratoId]);
   const isMain=screen==="main";
 
   const screenMap={
@@ -1270,7 +1284,7 @@ export default function App(){
     <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif"}}>
       {/* área de conteúdo — ocupa o espaço disponível e rola */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingTop:"env(safe-area-inset-top)"}}>
-        {screen==="login"&&<Login onAuth={onAuth} theme={theme} toggleTheme={toggleTheme}/>}
+        {screen==="login"&&<Login key={aviso} aviso={aviso} onAuth={onAuth} theme={theme} toggleTheme={toggleTheme}/>}
           {screen==="selecao"&&conta&&<SelectContrato conta={conta} onEscolher={escolher} onSair={goLogin} theme={theme} toggleTheme={toggleTheme}/>}
         {screen!=="login"&&screen!=="selecao"&&cliente&&screenMap[isMain?tab:screen]}
       </div>
