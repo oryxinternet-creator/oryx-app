@@ -23,6 +23,9 @@ jobs:
 
       - name: Build do app web (Vite)
         run: npm run build
+        env:
+          # o app usa para saber se está desatualizado (mesmo número do versionCode abaixo)
+          VITE_APP_BUILD: ${{ github.run_number }}
 
       - name: Adicionar plataforma Android (Capacitor)
         run: npx cap add android
