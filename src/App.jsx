@@ -22,7 +22,62 @@ import { Browser } from "@capacitor/browser";
    Enquanto os webhooks não existem, cada tela cai em "modo demonstração".
    ────────────────────────────────────────────────────────────────────────── */
 
-const API_BASE = "https://n8n02.proativaia.com.br/webhook"; // TODO Oryx: trocar pela base de webhooks do n8n da Oryx
+// Endereço do n8n: primeiro o da Oryx (api.oryxinternet.com.br, na Cloudflare); se não responder, o atual.
+// Trocar de servidor = mudar o IP do "api" na Cloudflare, sem atualizar o app.
+const BASES = ["https://api.oryxinternet.com.br/webhook", "https://n8n02.proativaia.com.br/webhook"];
+let API_BASE = BASES[BASES.length - 1];
+
+// Versão deste app (o "código da versão" da Play Store; o GitHub Actions passa no build)
+const APP_BUILD = Number(import.meta.env.VITE_APP_BUILD || 0);
+const LOJA_ID = "com.oryxinternet.cliente";
+
+// ─── CONFIGURAÇÃO (Painel do App → aba App) ───
+// O app já sabe tudo isto; o painel só troca o que estiver preenchido lá.
+const PADRAO = {
+  whatsapp:"556130203761", telefone:"556130203761", telefone_exibir:"(61) 3020-3761", instagram:"oryxinternet",
+  facebook:"https://facebook.com/profile.php?id=61577225497699", horario:"Seg–Sex: 8h–19h • Sáb: 9h–16h",
+  endereco:"SCS Quadra 07, Bloco A, Ed. Pátio Brasil, sala 1228 — Asa Sul, Brasília/DF", portal:"https://www.portaldoassinante.com/oryx",
+  faq:[
+    {q:"Minha internet está lenta, o que fazer?",a:"Reinicie o roteador desligando e ligando novamente. Aguarde 2 minutos. Você também pode usar a aba Velocidade do app para testar sua conexão. Se persistir, abra um chamado técnico ou fale no WhatsApp."},
+    {q:"Estou sem conexão, e agora?",a:"Verifique se as luzes do roteador estão acesas e reinicie o aparelho. Se você estiver com fatura em aberto, use o Desbloqueio de Confiança no app para liberar na hora. Persistindo, fale com o suporte."},
+    {q:"Como faço a 2ª via do meu boleto?",a:"Na aba Boleto do app você vê todas as suas faturas e pode copiar a linha digitável ou abrir o boleto."},
+  ],
+  desligados:[], tema:null, aviso:null, versao_minima:0, versao_atual:0, versao_texto:"",
+};
+const CKEY = "oryx_config_v1";
+const lerConfig = () => { try { const c = JSON.parse(localStorage.getItem(CKEY) || "null"); return c && typeof c === "object" ? c : {}; } catch (e) { return {}; } };
+let CFG = { ...PADRAO, ...lerConfig() };
+
+// Busca a configuração e, de quebra, descobre qual endereço do n8n está respondendo
+const buscarConfig = async () => {
+  for (const base of BASES) {
+    try {
+      const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
+      const r = await fetch(`${base}/app-config`, { signal: ctrl.signal, cache: "no-store" });
+      clearTimeout(t);
+      const d = r.ok ? await r.json() : null;
+      if (d && d.ok) { API_BASE = base; return d.config || {}; }
+    } catch (e) {}
+  }
+  return null;
+};
+const configPronta = buscarConfig();
+
+// tema e aviso têm data de fim: a cópia guardada no celular também respeita
+const quandoBR = s => new Date(s.length === 10 ? s + "T00:00:00-03:00" : s + ":00-03:00").getTime();
+const vigente = x => (x && (!x.fim || Date.now() <= quandoBR(String(x.fim)))) ? x : null;
+const ligado = k => !(CFG.desligados || []).includes(k);
+const waLink = msg => `https://wa.me/${CFG.whatsapp}` + (msg ? `?text=${encodeURIComponent(msg)}` : "");
+const ligarSuporte = () => { try { window.location.href = `tel:+${CFG.telefone}`; } catch (e) {} };
+
+// cor de destaque: amarelo Oryx, ou a cor da campanha (Outubro Rosa etc.) enquanto estiver no período
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+const misturar = (h, alvo, p) => "#" + hexRgb(h).map(v => Math.round(v + (alvo - v) * p).toString(16).padStart(2, "0")).join("");
+const acento = () => {
+  const t = vigente(CFG.tema);
+  if (!t || !/^#[0-9a-f]{6}$/i.test(t.cor || "")) return { y:"#FFD633", yd:"#F5C200", yClaro:"#FFDD55", yRgb:"245,194,0" };
+  return { y:misturar(t.cor, 255, 0.2), yd:t.cor, yClaro:misturar(t.cor, 255, 0.35), yRgb:hexRgb(t.cor).join(",") };
+};
 
 // Chave de sessão devolvida pelo app-login. Vai em todo pedido; o n8n só responde
 // sobre o CPF e os contratos que estão dentro dela.
@@ -30,6 +85,7 @@ let SESSAO = "";
 let aoExpirarSessao = () => {};
 
 const api = async (path, body) => {
+  await configPronta; // espera saber qual endereço do n8n está no ar (no máximo alguns segundos, só na abertura)
   const r = await fetch(`${API_BASE}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -43,7 +99,7 @@ const api = async (path, body) => {
 
 const themes = {
   light: {
-    y:"#FFD633", yd:"#F5C200", g:"#16a34a", r:"#dc2626", p:"#6366f1", o:"#ea580c", wa:"#1eb053",
+    y:"#FFD633", yd:"#F5C200", yClaro:"#FFDD55", yRgb:"245,194,0", g:"#16a34a", r:"#dc2626", p:"#6366f1", o:"#ea580c", wa:"#1eb053",
     bg:"#fdf6da", card:"#ffffff", t:"#16161d",
     b:"rgba(0,0,0,0.10)", s:"rgba(0,0,0,0.50)", m:"rgba(0,0,0,0.30)",
     surf:"rgba(0,0,0,0.03)", surf2:"rgba(0,0,0,0.06)",
@@ -53,7 +109,7 @@ const themes = {
     logoNeg:false,
   },
   dark: {
-    y:"#FFD633", yd:"#F5C200", g:"#34d399", r:"#f87171", p:"#818cf8", o:"#fb923c", wa:"#25D366",
+    y:"#FFD633", yd:"#F5C200", yClaro:"#FFDD55", yRgb:"245,194,0", g:"#34d399", r:"#f87171", p:"#818cf8", o:"#fb923c", wa:"#25D366",
     bg:"#080810", card:"#0f0f18", t:"#ffffff",
     b:"rgba(255,255,255,0.08)", s:"rgba(255,255,255,0.4)", m:"rgba(255,255,255,0.18)",
     surf:"rgba(255,255,255,0.04)", surf2:"rgba(255,255,255,0.07)",
@@ -148,7 +204,7 @@ const LogoH = ({h=28}) => {
 };
 
 const Btn = ({label,onClick,disabled=false,s={}}) => (
-  <button onClick={onClick} disabled={disabled} style={{background:`linear-gradient(135deg,${C.y},${C.yd})`,color:"#1a1000",border:"none",borderRadius:14,padding:15,fontSize:15,fontWeight:800,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.35:1,width:"100%",boxShadow:"0 6px 20px rgba(245,194,0,0.22)",...s}}>{label}</button>
+  <button onClick={onClick} disabled={disabled} style={{background:`linear-gradient(135deg,${C.y},${C.yd})`,color:"#1a1000",border:"none",borderRadius:14,padding:15,fontSize:15,fontWeight:800,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.35:1,width:"100%",boxShadow:`0 6px 20px rgba(${C.yRgb},0.22)`,...s}}>{label}</button>
 );
 
 const Badge = ({label,color}) => (
@@ -174,7 +230,7 @@ const Spinner = ({label="Carregando..."}) => (
 );
 
 const ThemeBtn = ({theme,onClick}) => (
-  <button onClick={onClick} aria-label="Alternar tema" style={{width:36,height:36,borderRadius:"50%",background:C.logoNeg?"rgba(255,255,255,0.14)":"#3D3D5C",border:`1px solid ${C.logoNeg?"rgba(255,255,255,0.22)":"#3D3D5C"}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.logoNeg?"#fff":"#F5C200",fontSize:16,flexShrink:0}}>{theme==="light"?"🌙":"☀️"}</button>
+  <button onClick={onClick} aria-label="Alternar tema" style={{width:36,height:36,borderRadius:"50%",background:C.logoNeg?"rgba(255,255,255,0.14)":"#3D3D5C",border:`1px solid ${C.logoNeg?"rgba(255,255,255,0.22)":"#3D3D5C"}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.logoNeg?"#fff":`${C.yd}`,fontSize:16,flexShrink:0}}>{theme==="light"?"🌙":"☀️"}</button>
 );
 
 // ─── ICONS ───
@@ -239,8 +295,8 @@ const Login = ({onAuth,theme,toggleTheme,aviso=""}) => {
 
   return (
     <div style={{padding:"32px 22px 28px",display:"flex",flexDirection:"column",gap:20,position:"relative"}}>
-      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 100% 45% at 50% -5%,rgba(245,194,0,0.09) 0%,transparent 60%)",pointerEvents:"none"}}/>
-      <div style={{position:"absolute",backgroundImage:"linear-gradient(rgba(245,194,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(245,194,0,0.025) 1px,transparent 1px)",backgroundSize:"40px 40px",inset:0,pointerEvents:"none"}}/>
+      <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse 100% 45% at 50% -5%,rgba(${C.yRgb},0.09) 0%,transparent 60%)`,pointerEvents:"none"}}/>
+      <div style={{position:"absolute",backgroundImage:`linear-gradient(rgba(${C.yRgb},0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(${C.yRgb},0.025) 1px,transparent 1px)`,backgroundSize:"40px 40px",inset:0,pointerEvents:"none"}}/>
       <div style={{display:"flex",justifyContent:"flex-end",position:"relative"}}><ThemeBtn theme={theme} onClick={toggleTheme}/></div>
       <div style={{display:"flex",justifyContent:"center",position:"relative"}}><LogoV h={100}/></div>
       <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:20,padding:"22px 18px",display:"flex",flexDirection:"column",gap:14,position:"relative"}}>
@@ -248,13 +304,13 @@ const Login = ({onAuth,theme,toggleTheme,aviso=""}) => {
         <p style={{color:C.s,fontSize:13,margin:0}}>Informe seu CPF/CNPJ e senha para acessar sua conta</p>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase"}}>CPF ou CNPJ</label>
-          <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${focused?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:focused?"rgba(245,194,0,0.05)":C.surf,transition:"all 0.2s"}}>
+          <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${focused?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:focused?`rgba(${C.yRgb},0.05)`:C.surf,transition:"all 0.2s"}}>
             <input style={{flex:1,background:"none",border:"none",outline:"none",color:C.t,fontSize:16,padding:"13px 0",fontFamily:"inherit",letterSpacing:1}} type="text" inputMode="numeric" placeholder="CPF ou CNPJ" value={cpf} onChange={e=>setCpf(fmtDoc(e.target.value))} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} onKeyDown={e=>e.key==="Enter"&&login()}/>
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase"}}>Senha</label>
-          <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${focSenha?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:focSenha?"rgba(245,194,0,0.05)":C.surf,transition:"all 0.2s"}}>
+          <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${focSenha?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:focSenha?`rgba(${C.yRgb},0.05)`:C.surf,transition:"all 0.2s"}}>
             <input style={{flex:1,background:"none",border:"none",outline:"none",color:C.t,fontSize:16,padding:"13px 0",fontFamily:"inherit"}} type={verSenha?"text":"password"} placeholder="Sua senha" value={senha} onChange={e=>setSenha(e.target.value)} onFocus={()=>setFocSenha(true)} onBlur={()=>setFocSenha(false)} onKeyDown={e=>e.key==="Enter"&&login()}/>
             <button onClick={()=>setVerSenha(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",padding:"6px",display:"flex",alignItems:"center",color:C.s}} aria-label="Mostrar senha">
               {verSenha
@@ -325,11 +381,11 @@ const Promos=()=>{
             {p.imagem
               ? <img src={p.imagem} alt={p.titulo||"Promoção"} style={{width:"100%",display:"block",objectFit:"cover"}}/>
               : <div style={{background:`linear-gradient(135deg,${p.cor||"#3D3D5C"},#3D3D5C)`,padding:18,color:"#fff",position:"relative"}}>
-                  <div style={{position:"absolute",top:-8,right:-8,width:54,height:54,borderRadius:"50%",background:"rgba(245,194,0,0.85)"}}/>
-                  <div style={{fontSize:10,color:"#F5C200",fontWeight:800,letterSpacing:1,position:"relative"}}>PROMOÇÃO</div>
+                  <div style={{position:"absolute",top:-8,right:-8,width:54,height:54,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
+                  <div style={{fontSize:10,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>PROMOÇÃO</div>
                   <div style={{fontSize:18,fontWeight:900,margin:"5px 0",position:"relative"}}>{p.titulo}</div>
                   {p.texto&&<div style={{fontSize:12,opacity:0.88,marginBottom:12,position:"relative"}}>{p.texto}</div>}
-                  {p.link&&<div style={{background:"#F5C200",color:"#1a1000",fontSize:12,fontWeight:800,padding:"7px 14px",borderRadius:9,display:"inline-block",position:"relative"}}>{(p.botao||"Saiba mais")} →</div>}
+                  {p.link&&<div style={{background:`${C.yd}`,color:"#1a1000",fontSize:12,fontWeight:800,padding:"7px 14px",borderRadius:9,display:"inline-block",position:"relative"}}>{(p.botao||"Saiba mais")} →</div>}
                 </div>}
           </div>
         ))}
@@ -384,7 +440,7 @@ const Consumo = ({goBack,cliente}) => {
       </div>
       {data===null ? <Spinner label="Buscando seu consumo..."/> : data==="erro" ? (<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.r,fontSize:14,fontWeight:700,margin:"0 0 4px"}}>Sem conexão</p><p style={{color:C.s,fontSize:13,margin:0}}>Não foi possível carregar o consumo. Verifique sua internet.</p></div>) : (<>
         <div style={{background:"linear-gradient(135deg,#3D3D5C,#000)",borderRadius:18,padding:"20px 18px",color:"#fff"}}>
-          <p style={{margin:"0 0 4px",fontSize:11,letterSpacing:1,color:"#F5C200",fontWeight:800}}>TOTAL NO MÊS</p>
+          <p style={{margin:"0 0 4px",fontSize:11,letterSpacing:1,color:`${C.yd}`,fontWeight:800}}>TOTAL NO MÊS</p>
           <p style={{margin:0,fontSize:30,fontWeight:900}}>{fmtBytes(data.total!=null?data.total:(data.consumoTotal||0))}</p>
           <p style={{margin:"6px 0 0",fontSize:12,opacity:.85}}>Plano: {data.plano||cliente.plano}</p>
         </div>
@@ -417,10 +473,10 @@ const CardCentral = ({cliente,goTo}) => {
 
   if(!cliente.termoAssinado) return (
     <div onClick={()=>goTo("contrato")} style={{...CARD,padding:"26px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,cursor:"pointer"}}>
-      <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(245,194,0,0.16)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>✍️</div>
+      <div style={{width:74,height:74,borderRadius:"50%",background:`rgba(${C.yRgb},0.16)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>✍️</div>
       <p style={{color:"#16161d",fontSize:21,fontWeight:800,margin:0}}>Assine seu contrato</p>
       <p style={{color:"#6b6457",fontSize:13.5,margin:0,textAlign:"center"}}>Seu termo de adesão está pendente de assinatura.</p>
-      <div style={{marginTop:8,width:"100%",background:"linear-gradient(135deg,#F5C200,#FFD633)",color:"#2b2b3d",fontSize:14,fontWeight:800,padding:"12px 0",borderRadius:13,textAlign:"center"}}>Assinar agora →</div>
+      <div style={{marginTop:8,width:"100%",background:`linear-gradient(135deg,${C.yd},${C.y})`,color:"#2b2b3d",fontSize:14,fontWeight:800,padding:"12px 0",borderRadius:13,textAlign:"center"}}>Assinar agora →</div>
     </div>
   );
   if(pend) return (
@@ -428,7 +484,7 @@ const CardCentral = ({cliente,goTo}) => {
       <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(220,38,38,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>⚠️</div>
       <p style={{color:"#16161d",fontSize:21,fontWeight:800,margin:0}}>Fatura pendente</p>
       <p style={{color:"#6b6457",fontSize:13.5,margin:0,textAlign:"center"}}>R$ {cliente.valorAberto}{cliente.vencimento?` • venc. dia ${cliente.vencimento}`:""}</p>
-      <div style={{marginTop:8,width:"100%",background:"linear-gradient(135deg,#F5C200,#FFD633)",color:"#2b2b3d",fontSize:14,fontWeight:800,padding:"12px 0",borderRadius:13,textAlign:"center"}}>Pagar com Pix / 2ª via →</div>
+      <div style={{marginTop:8,width:"100%",background:`linear-gradient(135deg,${C.yd},${C.y})`,color:"#2b2b3d",fontSize:14,fontWeight:800,padding:"12px 0",borderRadius:13,textAlign:"center"}}>Pagar com Pix / 2ª via →</div>
     </div>
   );
   if(promos===null) return <div style={{...CARD,height:220}}/>;
@@ -440,11 +496,11 @@ const CardCentral = ({cliente,goTo}) => {
             {pp.imagem
               ? <img src={pp.imagem} alt={pp.titulo||"Promoção"} style={{width:"100%",display:"block",objectFit:"cover"}}/>
               : <div style={{background:`linear-gradient(140deg,${pp.cor||"#3D3D5C"},#1a1c4e)`,padding:"24px 20px",color:"#fff",position:"relative",minHeight:160}}>
-                  <div style={{position:"absolute",top:-12,right:-12,width:70,height:70,borderRadius:"50%",background:"rgba(245,194,0,0.85)"}}/>
-                  <div style={{fontSize:11,color:"#F5C200",fontWeight:800,letterSpacing:1,position:"relative"}}>{pp.selo||"PROMOÇÃO"}</div>
+                  <div style={{position:"absolute",top:-12,right:-12,width:70,height:70,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
+                  <div style={{fontSize:11,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>{pp.selo||"PROMOÇÃO"}</div>
                   <div style={{fontSize:23,fontWeight:900,margin:"8px 0 4px",position:"relative",lineHeight:1.15}}>{pp.titulo}</div>
                   {pp.texto&&<div style={{fontSize:13,opacity:0.9,marginBottom:16,position:"relative"}}>{pp.texto}</div>}
-                  {pp.link&&<div style={{background:"#F5C200",color:"#1a1c4e",fontSize:13,fontWeight:800,padding:"9px 16px",borderRadius:10,display:"inline-block",position:"relative"}}>{(pp.botao||"Saiba mais")} →</div>}
+                  {pp.link&&<div style={{background:`${C.yd}`,color:"#1a1c4e",fontSize:13,fontWeight:800,padding:"9px 16px",borderRadius:10,display:"inline-block",position:"relative"}}>{(pp.botao||"Saiba mais")} →</div>}
                 </div>}
           </div>
         ))}
@@ -468,7 +524,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
   const inicial=(cliente.nome||"C").charAt(0).toUpperCase();
   const primeiro=(cliente.nome||"Cliente").split(" ")[0];
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
-  const contatos=[["💬",()=>abrir("https://wa.me/556130203761")],[(<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>),()=>abrir("https://instagram.com/oryxinternet")],["📞",()=>{try{window.location.href="tel:+556130203761";}catch(e){}}]];
+  const contatos=[["💬",()=>abrir(waLink())],[(<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>),()=>abrir(`https://instagram.com/${CFG.instagram}`)],["📞",ligarSuporte]];
   const atalhos=[
     {emoji:"💳",label:"2ª via",screen:"boleto"},
     {emoji:"🔓",label:"Desbloqueio",screen:"desbloqueio"},
@@ -478,11 +534,11 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
     {emoji:"⚡",label:"Velocidade",screen:"velocidade"},
     {emoji:"📺",label:"Meus Apps",screen:"apps"},
     {emoji:"💬",label:"Suporte",screen:"suporte"},
-  ];
+  ].filter(a=>ligado(a.screen));
   const claroSec=C.logoNeg?"rgba(255,255,255,0.72)":"rgba(43,43,61,0.7)";
   const titColor=C.logoNeg?"#ffffff":"#2b2b3d";
   return (
-    <div style={{minHeight:"100%",background:C.logoNeg?C.bg:"linear-gradient(170deg,#FFDD55,#F5C200)",display:"flex",flexDirection:"column"}}>
+    <div style={{minHeight:"100%",background:C.logoNeg?C.bg:`linear-gradient(170deg,${C.yClaro},${C.yd})`,display:"flex",flexDirection:"column"}}>
       <div style={{padding:"18px 18px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",gap:8}}>
           {contatos.map(([e,fn],i)=>(
@@ -491,7 +547,7 @@ const Home = ({goTo,cliente,theme,toggleTheme,onTrocar,varios}) => {
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <ThemeBtn theme={theme} onClick={toggleTheme}/>
-          <button onClick={()=>goTo("perfil")} style={{width:38,height:38,borderRadius:"50%",background:"#3D3D5C",border:"2px solid #F5C200",display:"flex",alignItems:"center",justifyContent:"center",color:"#F5C200",fontSize:15,fontWeight:700,cursor:"pointer"}}>{inicial}</button>
+          <button onClick={()=>goTo("perfil")} style={{width:38,height:38,borderRadius:"50%",background:"#3D3D5C",border:`2px solid ${C.yd}`,display:"flex",alignItems:"center",justifyContent:"center",color:`${C.yd}`,fontSize:15,fontWeight:700,cursor:"pointer"}}>{inicial}</button>
         </div>
       </div>
       <div style={{padding:"16px 20px 0"}}>
@@ -562,13 +618,13 @@ const Boleto = ({goBack,goTo,cliente}) => {
           <p style={{color:C.s,fontSize:11,margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>Código de barras</p>
           <p style={{color:C.t,fontSize:11,fontFamily:"monospace",margin:0,letterSpacing:1,wordBreak:"break-all"}}>{b.linha}</p>
         </div>}
-        {b.linha&&<Btn label={copiado?"✓ Copiado!":"📋 Copiar código de barras"} onClick={()=>{navigator.clipboard?.writeText(b.linha);setCopiado(true);setTimeout(()=>setCopiado(false),2000);}} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
+        {b.linha&&<Btn label={copiado?"✓ Copiado!":"📋 Copiar código de barras"} onClick={()=>{navigator.clipboard?.writeText(b.linha);setCopiado(true);setTimeout(()=>setCopiado(false),2000);}} s={{background:`rgba(${C.yRgb},0.12)`,color:C.y,boxShadow:"none",border:`1px solid rgba(${C.yRgb},0.25)`}}/>}
         {b.pix&&<div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:14}}>
           <p style={{color:C.s,fontSize:11,margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>Pix copia e cola</p>
           <p style={{color:C.t,fontSize:11,fontFamily:"monospace",margin:0,letterSpacing:0.5,wordBreak:"break-all"}}>{b.pix}</p>
         </div>}
         {b.pix&&<Btn label={copiadoPix?"✓ Pix copiado!":"📲 Copiar Pix (copia e cola)"} onClick={()=>{navigator.clipboard?.writeText(b.pix);setCopiadoPix(true);setTimeout(()=>setCopiadoPix(false),2000);}}/>}
-        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={async()=>{try{await Browser.open({url:b.link,presentationStyle:"fullscreen"});}catch(e){window.open(b.link,"_blank");}}} s={{background:"rgba(245,194,0,0.12)",color:C.y,boxShadow:"none",border:`1px solid rgba(245,194,0,0.25)`}}/>}
+        {b.link&&<Btn label="📄 Abrir boleto / PDF" onClick={async()=>{try{await Browser.open({url:b.link,presentationStyle:"fullscreen"});}catch(e){window.open(b.link,"_blank");}}} s={{background:`rgba(${C.yRgb},0.12)`,color:C.y,boxShadow:"none",border:`1px solid rgba(${C.yRgb},0.25)`}}/>}
       </>}
       {b.status==="pago"&&<div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:12,padding:14,textAlign:"center"}}><p style={{color:C.g,fontSize:13,fontWeight:600,margin:0}}>✓ Boleto quitado</p></div>}
     </div>
@@ -579,7 +635,7 @@ const Boleto = ({goBack,goTo,cliente}) => {
       <Back onClick={goBack}/>
       <h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:0}}>2ª Via de Boleto</h2>
       <p style={{color:C.s,fontSize:13,margin:0}}>Contrato #{cliente.contratoId} — {cliente.nome}</p>
-      <button onClick={()=>goTo("notas")} style={{alignSelf:"flex-start",background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:"10px 14px",color:C.t,fontSize:13,fontWeight:700,cursor:"pointer"}}>🧾 Minhas notas fiscais ›</button>
+      {ligado("notas")&&<button onClick={()=>goTo("notas")} style={{alignSelf:"flex-start",background:C.surf,border:`1px solid ${C.b}`,borderRadius:12,padding:"10px 14px",color:C.t,fontSize:13,fontWeight:700,cursor:"pointer"}}>🧾 Minhas notas fiscais ›</button>}
       {lista.length===0&&<div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:16,padding:20,textAlign:"center"}}><p style={{color:C.g,fontSize:15,fontWeight:700,margin:"0 0 4px"}}>✓ Conta em dia!</p><p style={{color:C.s,fontSize:13,margin:0}}>Nenhum boleto em aberto.</p></div>}
       {lista.map((b,i)=>(
         <div key={i} onClick={()=>setSel(i)} style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:16,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
@@ -664,7 +720,7 @@ const Velocidade=({goBack})=>{
         <button onClick={iniciar} disabled={testando} style={{width:"100%",background:testando?C.line3:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:800,cursor:testando?"default":"pointer",opacity:testando?0.7:1}}>{testando?"Testando…":((fase==="done"||fase==="erro")?"Testar novamente":"Iniciar teste →")}</button>
       </div>
 
-      <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
+      <div style={{background:`rgba(${C.yRgb},0.07)`,border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
         <p style={{color:C.t,fontSize:12.5,fontWeight:700,margin:"0 0 6px"}}>💡 Dicas para um teste preciso</p>
         <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.6}}>• Conecte o aparelho no Wi-Fi e fique perto do roteador<br/>• Feche apps e downloads em segundo plano<br/>• Evite outras pessoas usando a internet durante o teste<br/>• Para medir o plano contratado, use cabo no computador quando possível</p>
       </div>
@@ -675,22 +731,17 @@ const Velocidade=({goBack})=>{
 const Suporte=({goBack,goTo})=>{
   const [faq,setFaq]=useState(null);
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
-  const tel=()=>{ try{ window.location.href="tel:+556130203761"; }catch(e){} };
   const canais=[
-    {icon:"💬",label:"Chat pelo WhatsApp",sub:"Atendimento rápido",color:C.wa,action:"Iniciar",go:()=>abrir("https://wa.me/556130203761?text="+encodeURIComponent("Olá! Preciso de ajuda com minha internet Oryx."))},
-    {icon:"📞",label:"Ligar para o suporte",sub:"(61) 3020-3761",color:C.p,action:"Ligar",go:tel},
-    {icon:"🔧",label:"Abrir chamado técnico",sub:"Falar com o suporte",color:C.o,action:"Abrir",go:()=>abrir("https://wa.me/556130203761?text="+encodeURIComponent("Olá! Preciso de ajuda com minha internet Oryx. Quero abrir um chamado técnico."))},
-    {icon:"🔓",label:"Desbloqueio de confiança",sub:"Liberar conexão",color:C.y,action:"Liberar",go:()=>goTo("desbloqueio")},
-  ];
+    {icon:"💬",label:"Chat pelo WhatsApp",sub:"Atendimento rápido",color:C.wa,action:"Iniciar",go:()=>abrir(waLink("Olá! Preciso de ajuda com minha internet Oryx."))},
+    {icon:"📞",label:"Ligar para o suporte",sub:CFG.telefone_exibir,color:C.p,action:"Ligar",go:ligarSuporte},
+    {icon:"🔧",label:"Abrir chamado técnico",sub:"Falar com o suporte",color:C.o,action:"Abrir",go:()=>abrir(waLink("Olá! Preciso de ajuda com minha internet Oryx. Quero abrir um chamado técnico."))},
+    {icon:"🔓",label:"Desbloqueio de confiança",sub:"Liberar conexão",color:C.y,action:"Liberar",go:()=>goTo("desbloqueio"),funcao:"desbloqueio"},
+  ].filter(c=>!c.funcao||ligado(c.funcao));
   const redes=[
-    {icon:"📷",label:"Instagram",sub:"@oryxinternet",color:"#E1306C",go:()=>abrir("https://instagram.com/oryxinternet")},
-    {icon:"👍",label:"Facebook",sub:"Oryx Internet",color:"#1877F2",go:()=>abrir("https://facebook.com/profile.php?id=61577225497699")},
+    {icon:"📷",label:"Instagram",sub:"@"+CFG.instagram,color:"#E1306C",go:()=>abrir(`https://instagram.com/${CFG.instagram}`)},
+    {icon:"👍",label:"Facebook",sub:"Oryx Internet",color:"#1877F2",go:()=>abrir(CFG.facebook)},
   ];
-  const faqs=[
-    {q:"Minha internet está lenta, o que fazer?",a:"Reinicie o roteador desligando e ligando novamente. Aguarde 2 minutos. Você também pode usar a aba Velocidade do app para testar sua conexão. Se persistir, abra um chamado técnico ou fale no WhatsApp."},
-    {q:"Estou sem conexão, e agora?",a:"Verifique se as luzes do roteador estão acesas e reinicie o aparelho. Se você estiver com fatura em aberto, use o Desbloqueio de Confiança no app para liberar na hora. Persistindo, fale com o suporte."},
-    {q:"Como faço a 2ª via do meu boleto?",a:"Na aba Boleto do app você vê todas as suas faturas e pode copiar a linha digitável ou abrir o boleto."},
-  ];
+  const faqs=CFG.faq&&CFG.faq.length?CFG.faq:PADRAO.faq;
   return(
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
       <Back onClick={goBack}/>
@@ -715,15 +766,15 @@ const Suporte=({goBack,goTo})=>{
       </div>
       <p style={{color:C.s,fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",margin:"4px 0 0"}}>Perguntas frequentes</p>
       {faqs.map((f,i)=>(
-        <div key={i} style={{background:C.surf,border:`1px solid ${faq===i?"rgba(245,194,0,0.25)":C.b}`,borderRadius:14,overflow:"hidden",cursor:"pointer"}} onClick={()=>setFaq(faq===i?null:i)}>
+        <div key={i} style={{background:C.surf,border:`1px solid ${faq===i?`rgba(${C.yRgb},0.25)`:C.b}`,borderRadius:14,overflow:"hidden",cursor:"pointer"}} onClick={()=>setFaq(faq===i?null:i)}>
           <div style={{padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><p style={{color:C.t,fontSize:13,fontWeight:600,margin:0,flex:1,paddingRight:8}}>{f.q}</p><span style={{color:C.y,fontSize:16,display:"block",transform:faq===i?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>›</span></div>
           {faq===i&&<div style={{padding:"0 16px 14px",borderTop:`1px solid ${C.line}`}}><p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.6}}>{f.a}</p></div>}
         </div>
       ))}
-      <div style={{background:"rgba(245,194,0,0.06)",border:"1px solid rgba(245,194,0,0.15)",borderRadius:16,padding:16,textAlign:"center"}}>
+      <div style={{background:`rgba(${C.yRgb},0.06)`,border:`1px solid rgba(${C.yRgb},0.15)`,borderRadius:16,padding:16,textAlign:"center"}}>
         <p style={{color:C.s,fontSize:12,margin:"0 0 6px"}}>Horário de atendimento</p>
-        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>Seg–Sex: 8h–19h • Sáb: 9h–16h</p>
-        <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.5}}>📍 SCS Quadra 07, Bloco A, Ed. Pátio Brasil, sala 1228 — Asa Sul, Brasília/DF</p>
+        <p style={{color:C.t,fontSize:14,fontWeight:700,margin:"0 0 10px"}}>{CFG.horario}</p>
+        <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.5}}>📍 {CFG.endereco}</p>
       </div>
     </div>
   );
@@ -735,12 +786,12 @@ const AtualizarCadastro = ({goBack,cliente}) => {
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
   const enviar=()=>{
     const msg="Olá! Sou "+cliente.nome+" (contrato #"+cliente.contratoId+"). Quero atualizar meu cadastro:"+(tel?"\nTelefone: "+tel:"")+(email?"\nE-mail: "+email:"");
-    abrir("https://wa.me/556130203761?text="+encodeURIComponent(msg));
+    abrir(waLink(msg));
   };
   const campo=(label,val,setVal,ph,key,type)=>(
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       <label style={{color:C.lbl,fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase"}}>{label}</label>
-      <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${foc===key?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:foc===key?"rgba(245,194,0,0.05)":C.surf}}>
+      <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${foc===key?C.y:C.line2}`,borderRadius:12,padding:"0 14px",background:foc===key?`rgba(${C.yRgb},0.05)`:C.surf}}>
         <input style={{flex:1,background:"none",border:"none",outline:"none",color:C.t,fontSize:16,padding:"13px 0",fontFamily:"inherit"}} type={type||"text"} placeholder={ph} value={val} onChange={e=>setVal(e.target.value)} onFocus={()=>setFoc(key)} onBlur={()=>setFoc("")}/>
       </div>
     </div>
@@ -794,7 +845,7 @@ const Perfil=({goBack,goLogin,goTo,cliente})=>(
   <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
     <Back onClick={goBack}/>
     <div style={{display:"flex",alignItems:"center",gap:14}}>
-      <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(245,194,0,0.15)",border:"2px solid rgba(245,194,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center",color:C.y,fontSize:24,fontWeight:700}}>{(cliente.nome||"C").charAt(0)}</div>
+      <div style={{width:60,height:60,borderRadius:"50%",background:`rgba(${C.yRgb},0.15)`,border:`2px solid rgba(${C.yRgb},0.3)`,display:"flex",alignItems:"center",justifyContent:"center",color:C.y,fontSize:24,fontWeight:700}}>{(cliente.nome||"C").charAt(0)}</div>
       <div><h2 style={{color:C.t,fontSize:18,fontWeight:700,margin:"0 0 3px"}}>{cliente.nome}</h2><p style={{color:C.s,fontSize:13,margin:0}}>Cliente Oryx Internet</p></div>
     </div>
     <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:16,padding:16,display:"flex",flexDirection:"column",gap:0}}>
@@ -808,6 +859,7 @@ const Perfil=({goBack,goLogin,goTo,cliente})=>(
       ))}
     </div>
     <button onClick={goLogin} style={{background:"none",border:"1px solid rgba(241,85,85,0.3)",borderRadius:14,padding:14,color:C.r,fontSize:14,fontWeight:600,cursor:"pointer"}}>Sair da conta</button>
+    <p style={{color:C.t3,fontSize:11,textAlign:"center",margin:"4px 0 0"}}>Versão do app: {APP_BUILD||"teste"}</p>
   </div>
 );
 
@@ -1028,8 +1080,8 @@ const Contrato = ({goBack,cliente}) => {
           {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:8,width:"100%",background:C.surf2,color:C.t,border:`1px solid ${C.line2}`,borderRadius:12,padding:13,fontSize:14,fontWeight:600,cursor:"pointer"}}>📄 Baixar termo assinado (PDF)</button>}
         </div>
       ) : (
-        <div style={{background:"rgba(245,194,0,0.07)",border:"1px solid rgba(245,194,0,0.25)",borderRadius:16,padding:18,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
-          <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(245,194,0,0.15)",border:"2px solid rgba(245,194,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>✍️</div>
+        <div style={{background:`rgba(${C.yRgb},0.07)`,border:`1px solid rgba(${C.yRgb},0.25)`,borderRadius:16,padding:18,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
+          <div style={{width:60,height:60,borderRadius:"50%",background:`rgba(${C.yRgb},0.15)`,border:`2px solid rgba(${C.yRgb},0.35)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>✍️</div>
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
           <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
           {url ? (
@@ -1062,7 +1114,7 @@ const abrirNoApp=async(url)=>{
 };
 
 const MeusApps=({goBack})=>{
-  const PORTAL="https://www.portaldoassinante.com/oryx";
+  const PORTAL=CFG.portal;
   const abrir=async(u)=>{ try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
   return(
     <div style={{padding:"20px 16px 24px",display:"flex",flexDirection:"column",gap:16}}>
@@ -1070,13 +1122,13 @@ const MeusApps=({goBack})=>{
       <p style={{color:C.s,fontSize:13,margin:"-6px 0 0"}}>Acesse os serviços inclusos no seu plano</p>
 
       <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"22px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
-        <div style={{width:64,height:64,borderRadius:18,background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📺</div>
+        <div style={{width:64,height:64,borderRadius:18,background:`rgba(${C.yRgb},0.14)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📺</div>
         <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"6px 0 0"}}>Portal do Assinante</p>
         <p style={{color:C.s,fontSize:12,margin:0,lineHeight:1.5}}>Acesse seus aplicativos de streaming, serviços e benefícios inclusos no seu plano Oryx.</p>
         <button onClick={()=>abrirNoApp(PORTAL)} style={{marginTop:10,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Abrir Portal do Assinante →</button>
       </div>
 
-      <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
+      <div style={{background:`rgba(${C.yRgb},0.07)`,border:`1px solid ${C.line}`,borderRadius:12,padding:"13px 15px"}}>
         <p style={{color:C.t,fontSize:12.5,fontWeight:700,margin:"0 0 6px"}}>💡 O que você encontra no portal</p>
         <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.6}}>• Aplicativos de streaming e TV<br/>• Serviços e benefícios do plano<br/>• Configurações da sua conta</p>
       </div>
@@ -1133,11 +1185,11 @@ function MeuWifi({cliente}){
 
       {st==="erro"&&(
         <div style={{background:C.surf,border:`1px solid ${C.b}`,borderRadius:18,padding:"22px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,textAlign:"center"}}>
-          <div style={{width:64,height:64,borderRadius:18,background:"rgba(245,194,0,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📶</div>
+          <div style={{width:64,height:64,borderRadius:18,background:`rgba(${C.yRgb},0.14)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>📶</div>
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Não conseguimos carregar sua rede</p>
           <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.55}}>Pode ser instabilidade momentânea. Tente de novo em instantes ou fale com o suporte.</p>
           <button onClick={carregar} style={{marginTop:8,width:"100%",background:C.y,color:"#3D3D5C",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Tentar de novo</button>
-          <a href={"https://wa.me/556130203761?text="+encodeURIComponent("Olá! Quero trocar o nome/senha do meu Wi-Fi.")} style={{color:C.s,fontSize:13,textDecoration:"underline",textUnderlineOffset:3}}>Falar com o suporte</a>
+          <a href={waLink("Olá! Quero trocar o nome/senha do meu Wi-Fi.")} style={{color:C.s,fontSize:13,textDecoration:"underline",textUnderlineOffset:3}}>Falar com o suporte</a>
         </div>
       )}
 
@@ -1150,7 +1202,7 @@ function MeuWifi({cliente}){
               <p style={{color:C.t,fontSize:16,fontWeight:700,margin:0,wordBreak:"break-all"}}>{r.ssid||"—"}</p>
             </div>
           ))}
-          <div style={{background:"rgba(245,194,0,0.07)",border:`1px solid ${C.line}`,borderRadius:12,padding:"11px 14px"}}>
+          <div style={{background:`rgba(${C.yRgb},0.07)`,border:`1px solid ${C.line}`,borderRadius:12,padding:"11px 14px"}}>
             <p style={{color:C.s,fontSize:11.5,margin:0,lineHeight:1.55}}>🔒 Por segurança, a senha atual não pode ser exibida. Você pode definir uma senha nova a qualquer momento.</p>
           </div>
           <Btn label="Alterar nome e senha" onClick={()=>{ setEditar(true); setNome(""); setSenha(""); setMsg(""); }}/>
@@ -1183,6 +1235,33 @@ function MeuWifi({cliente}){
   );
 }
 
+
+// ─── AVISO DO PAINEL (faixa no topo: manutenção, instabilidade...) ───
+const AvisoApp=()=>{
+  const a=vigente(CFG.aviso);
+  if(!a||!a.texto)return null;
+  const tipos={info:["#E8F0FE","#1E4FB5","ℹ️"],alerta:["#FFF1E0","#B4500A","⚠️"],sucesso:["#E5F6EC","#157A42","✅"]};
+  const [fundo,cor,icone]=tipos[a.tipo]||tipos.info;
+  return(
+    <div onClick={a.link?()=>abrirNoApp(a.link):undefined} style={{background:fundo,color:cor,padding:"10px 16px",fontSize:13,fontWeight:600,lineHeight:1.4,display:"flex",gap:8,alignItems:"flex-start",cursor:a.link?"pointer":"default"}}>
+      <span>{icone}</span><span style={{flex:1}}>{a.texto}</span>{a.link&&<span style={{fontSize:16}}>›</span>}
+    </div>
+  );
+};
+
+// ─── VERSÃO NOVA NA PLAY STORE ───
+const abrirLoja=()=>{ try{ window.location.href=`market://details?id=${LOJA_ID}`; }catch(e){ abrirNoApp(`https://play.google.com/store/apps/details?id=${LOJA_ID}`); } };
+const AtualizarApp=({obrigatorio,onDepois})=>(
+  <div style={{position:"fixed",inset:0,zIndex:50,background:obrigatorio?C.bg:"rgba(0,0,0,0.55)",display:"flex",alignItems:obrigatorio?"center":"flex-end",justifyContent:"center",padding:obrigatorio?24:0}}>
+    <div style={{background:C.card,width:"100%",maxWidth:420,borderRadius:obrigatorio?24:"24px 24px 0 0",padding:"28px 22px calc(22px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",alignItems:"center",gap:10,textAlign:"center",boxShadow:"0 -10px 40px rgba(0,0,0,0.25)"}}>
+      <div style={{width:70,height:70,borderRadius:"50%",background:`rgba(${C.yRgb},0.16)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>🚀</div>
+      <p style={{color:C.t,fontSize:20,fontWeight:800,margin:0}}>Nova versão do app</p>
+      <p style={{color:C.s,fontSize:14,margin:"0 0 8px",lineHeight:1.5}}>{CFG.versao_texto||(obrigatorio?"Para continuar usando o app da Oryx, atualize para a versão mais nova.":"Tem novidade no app da Oryx! Atualize para aproveitar.")}</p>
+      <Btn label="Atualizar agora" onClick={abrirLoja}/>
+      {!obrigatorio&&<button onClick={onDepois} style={{background:"none",border:"none",color:C.s,fontSize:14,padding:10,cursor:"pointer"}}>Agora não</button>}
+    </div>
+  </div>
+);
 
 const TABS=["home","boleto","velocidade","apps","wifi","suporte"];
 const TLABELS={home:"Início",boleto:"Boleto",velocidade:"Velocidade",apps:"Meus Apps",wifi:"Wi-Fi",suporte:"Suporte"};
@@ -1254,9 +1333,16 @@ export default function App(){
       else { setScreen("selecao"); }
     }
   },[]);
-  Object.assign(C, themes[theme]);
+  // configuração do painel: chega ao abrir o app e fica guardada para a próxima vez
+  const [,setCfgVersao]=useState(0);
+  const [depois,setDepois]=useState(false);
+  useEffect(()=>{ configPronta.then(c=>{ if(!c)return; CFG={...PADRAO,...c}; try{localStorage.setItem(CKEY,JSON.stringify(c));}catch(e){} setCfgVersao(v=>v+1); }); },[]);
+  Object.assign(C, themes[theme], acento());
   const toggleTheme=()=>setTheme(t=>t==="light"?"dark":"light");
-  const goTo=(s)=>{if(TABS.includes(s)){setTab(s);setScreen("main");}else setScreen(s);};
+  const goTo=(s)=>{if(!ligado(s))return; if(TABS.includes(s)){setTab(s);setScreen("main");}else setScreen(s);};
+  const abas=TABS.filter(ligado);
+  const obrigatorio=APP_BUILD>0&&Number(CFG.versao_minima||0)>APP_BUILD;
+  const sugerir=!obrigatorio&&!depois&&APP_BUILD>0&&Number(CFG.versao_atual||0)>APP_BUILD;
   const goBack=()=>{setScreen("main");setTab("home");};
   const goLogin=()=>{SESSAO="";limparSessao();setScreen("login");setTab("home");setCliente(null);setConta(null);};
   // n8n recusou a chave (venceu ou foi trocada): volta para o login com um aviso
@@ -1284,6 +1370,7 @@ export default function App(){
     <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif"}}>
       {/* área de conteúdo — ocupa o espaço disponível e rola */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingTop:"env(safe-area-inset-top)"}}>
+        <AvisoApp/>
         {screen==="login"&&<Login key={aviso} aviso={aviso} onAuth={onAuth} theme={theme} toggleTheme={toggleTheme}/>}
           {screen==="selecao"&&conta&&<SelectContrato conta={conta} onEscolher={escolher} onSair={goLogin} theme={theme} toggleTheme={toggleTheme}/>}
         {screen!=="login"&&screen!=="selecao"&&cliente&&screenMap[isMain?tab:screen]}
@@ -1291,7 +1378,7 @@ export default function App(){
       {/* barra de abas fixa no rodapé, respeitando o gesto do Android */}
       {screen!=="login"&&screen!=="selecao"&&!(isMain&&tab==="home")&&(
         <div style={{display:"flex",background:C.nav,borderTop:`1px solid ${C.line}`,padding:"8px 0 calc(4px + env(safe-area-inset-bottom))",flexShrink:0}}>
-          {TABS.map(t=>(
+          {abas.map(t=>(
             <button key={t} onClick={()=>{setTab(t);setScreen("main");}} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"6px 0",color:tab===t&&isMain?C.y:C.t3,transition:"color 0.2s"}}>
               {TICONS[t](tab===t&&isMain)}
               <span style={{fontSize:9,fontWeight:tab===t&&isMain?700:500}}>{TLABELS[t]}</span>
@@ -1300,6 +1387,7 @@ export default function App(){
           ))}
         </div>
       )}
+      {(obrigatorio||sugerir)&&<AtualizarApp obrigatorio={obrigatorio} onDepois={()=>setDepois(true)}/>}
     </div>
   );
 }
