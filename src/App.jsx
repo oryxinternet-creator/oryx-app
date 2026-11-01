@@ -93,7 +93,8 @@ const chamar = async (path, body) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...(body || {}), ...(SESSAO ? { sessao: SESSAO } : {}) }),
   });
-  if (r.status === 401 && path !== "app-login") { aoExpirarSessao(); throw new Error("Sessão expirada"); }
+  // só pedidos de dados do cliente derrubam o login; login, promoções e registro de notificação, não
+  if (r.status === 401 && !["app-login", "app-token", "app-promocoes", "app-recuperar-senha"].includes(path)) { aoExpirarSessao(); throw new Error("Sessão expirada"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
   return await r.json();
 };
@@ -101,7 +102,8 @@ const chamar = async (path, body) => {
 // Não existe no app publicado (o Vite remove este trecho no build).
 const DEMO_API = import.meta.env.DEV && typeof location !== "undefined" && /[?&]demo/.test(location.search);
 const respostaDemo = (path) => new Promise(ok => setTimeout(() => ok(({
-  "app-login": { ok:true, sessao:"demo", nome:"Maria Souza", contratos:[{contratoId:"1234",clienteId:"77",plano:"FIBRA 700 MEGA",status:"Ativo",vencimento:10,valorAberto:"99,90",titulos:1,pendencia:true,termoAssinado:true}] },
+  "app-login": { ok:true, sessao:"demo", nome:"Maria Souza", contratos:[{contratoId:"1234",clienteId:"77",plano:"FIBRA 700 MEGA",status:"Ativo",vencimento:10,valorAberto:"99,90",titulos:1,pendencia:true,termoAssinado:false,termoUrl:"https://oryxinternet.com.br",termoPdf:"https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf"}] },
+  "app-assinar-contrato": { ok:true, mensagem:"Contrato assinado com sucesso!" },
   "app-boletos": { boletos:[{venc:"2026-11-10",valor:"99.90",status:"aberto",linha:"00190.00009 01234.560005 61237.100000 2 00000000009990",pix:"00020126360014br.gov.bcb.pix0114+55613020376152040000",link:"https://oryxinternet.com.br"},{venc:"2026-10-10",valor:"99.90",status:"pago"},{venc:"2026-09-10",valor:"99.90",status:"pago"}] },
   "app-promocoes": { promocoes:[] },
   "app-notas": { notas:[{numero:"5531",id:"1",data_emissao:"2026-10-01",status:"1",serie:"1"}] },
@@ -1074,7 +1076,7 @@ const Perfil=({goBack,goLogin,goTo,cliente})=>(
       ))}
     </div>
     <button onClick={goLogin} style={{background:"none",border:"1px solid rgba(241,85,85,0.3)",borderRadius:14,padding:14,color:C.r,fontSize:14,fontWeight:600,cursor:"pointer"}}>Sair da conta</button>
-    <p style={{color:C.t3,fontSize:12,textAlign:"center",margin:"4px 0 0"}}>Versão do app: {APP_BUILD||"teste"}</p>
+    <p style={{color:C.t3,fontSize:12,textAlign:"center",margin:"4px 0 0"}}>{ehNativo()?`Versão do app: ${APP_BUILD||"teste"}`:"Central do Assinante (web)"}</p>
   </div>
 );
 
@@ -1184,10 +1186,12 @@ const PhotoCard=({label,val,onPick,capture})=>(
   </label>
 );
 
-const AssinarContrato=({cliente,onClose})=>{
+// Assinatura completa dentro do app: o n8n (app-assinar-contrato) envia as fotos e a assinatura
+// para o formulário oficial do SGPsign, então o contrato fica assinado lá, igual pela página web.
+const AssinarContrato=({cliente,onClose,onAssinado})=>{
   const canvasRef=useRef(null); const drawing=useRef(false);
   const [temAss,setTemAss]=useState(false);
-  const [fotos,setFotos]=useState({frente:null,verso:null,selfie:null});
+  const [fotos,setFotos]=useState({frente:null,selfie:null});
   const [aceite,setAceite]=useState(false);
   const [enviando,setEnviando]=useState(false);
   const [erro,setErro]=useState(null);
@@ -1206,13 +1210,13 @@ const AssinarContrato=({cliente,onClose})=>{
     fr.readAsDataURL(file);
   };
 
-  const completo = temAss && fotos.frente && fotos.verso && fotos.selfie && aceite;
+  const completo = temAss && fotos.frente && fotos.selfie && aceite;
   const enviar=async()=>{
     if(!completo||enviando)return; setEnviando(true); setErro(null);
     try{
       const assinatura=canvasRef.current.toDataURL("image/png");
-      const d=await api("app-contrato-assinar",{cpf:cliente.cpf,senha:cliente.senha,contrato:cliente.contratoId,nome:cliente.nome,assinatura,docFrente:fotos.frente,docVerso:fotos.verso,selfie:fotos.selfie,aceite:true,dataHora:new Date().toISOString()});
-      if(d&&(d.ok||d.success||d.status==="success"||d.status===true)) setOk(true);
+      const d=await api("app-assinar-contrato",{termoUrl:cliente.termoUrl,cpf:cliente.cpf,contrato:cliente.contratoId,nome:cliente.nome,assinatura,fotoDoc:fotos.frente,foto:fotos.selfie});
+      if(d&&d.ok){ setOk(true); onAssinado&&onAssinado(); }
       else setErro((d&&(d.mensagem||d.message))||"Não foi possível enviar agora. Tente novamente.");
     }catch(e){ setErro("Falha de conexão. Tente novamente."); }
     setEnviando(false);
@@ -1228,13 +1232,13 @@ const AssinarContrato=({cliente,onClose})=>{
       {ok ? (
         <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,padding:"0 28px",textAlign:"center"}}>
           <div style={{width:74,height:74,borderRadius:"50%",background:"rgba(52,211,153,0.15)",border:"2px solid rgba(52,211,153,0.4)",display:"flex",alignItems:"center",justifyContent:"center",color:C.g}}><Ic n="ok" size={34} w={1.9}/></div>
-          <p style={{color:C.t,fontSize:18,fontWeight:800,margin:0}}>Assinatura enviada!</p>
-          <p style={{color:C.s,fontSize:14,margin:0,lineHeight:1.5}}>Recebemos sua assinatura e suas fotos. Seu contrato será registrado em instantes.</p>
+          <p style={{color:C.t,fontSize:18,fontWeight:800,margin:0}}>Contrato assinado!</p>
+          <p style={{color:C.s,fontSize:14,margin:0,lineHeight:1.5}}>Obrigado! Sua assinatura foi registrada na plataforma oficial de assinatura eletrônica.</p>
           <button onClick={onClose} style={{marginTop:8,width:"100%",maxWidth:280,background:C.y,color:"#1a1000",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:800,cursor:"pointer"}}>Concluir</button>
         </div>
       ) : (
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:16}}>
-          <p style={{color:C.s,fontSize:14,margin:0,lineHeight:1.5}}>Contrato #{cliente.contratoId} — {cliente.nome}. Assine no quadro e envie as fotos solicitadas.</p>
+          <p style={{color:C.s,fontSize:14,margin:0,lineHeight:1.5}}>Contrato #{cliente.contratoId} — {cliente.nome}. Tire as duas fotos, assine no quadro e confirme.</p>
 
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -1248,9 +1252,8 @@ const AssinarContrato=({cliente,onClose})=>{
           <div>
             <label style={{color:C.t,fontSize:14,fontWeight:700,display:"block",marginBottom:8}}>Documento e selfie</label>
             <div style={{display:"flex",gap:10}}>
-              <PhotoCard label="Doc. frente" val={fotos.frente} onPick={lerFoto("frente")} capture="environment"/>
-              <PhotoCard label="Doc. verso" val={fotos.verso} onPick={lerFoto("verso")} capture="environment"/>
-              <PhotoCard label="Selfie c/ doc" val={fotos.selfie} onPick={lerFoto("selfie")} capture="user"/>
+              <PhotoCard label="Foto do documento" val={fotos.frente} onPick={lerFoto("frente")} capture="environment"/>
+              <PhotoCard label="Selfie com documento" val={fotos.selfie} onPick={lerFoto("selfie")} capture="user"/>
             </div>
           </div>
 
@@ -1261,8 +1264,8 @@ const AssinarContrato=({cliente,onClose})=>{
 
           {erro&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.4)",borderRadius:12,padding:"11px 14px",color:C.t,fontSize:14,display:"flex",gap:8,alignItems:"flex-start"}}><Ic n="alerta" size={18} s={{color:C.r}}/><span>{erro}</span></div>}
 
-          <button onClick={enviar} disabled={!completo||enviando} style={{width:"100%",background:(!completo||enviando)?C.line3:C.y,color:"#1a1000",border:"none",borderRadius:14,padding:15,fontSize:15,fontWeight:800,cursor:(!completo||enviando)?"default":"pointer",opacity:(!completo||enviando)?0.7:1}}>{enviando?"Enviando…":"Enviar assinatura"}</button>
-          <p style={{color:C.s,fontSize:12,margin:0,textAlign:"center",lineHeight:1.4}}>Registramos data, hora e seu aceite junto com a assinatura.</p>
+          <button onClick={enviar} disabled={!completo||enviando} style={{width:"100%",background:(!completo||enviando)?C.line3:C.y,color:"#1a1000",border:"none",borderRadius:14,padding:15,fontSize:15,fontWeight:800,cursor:(!completo||enviando)?"default":"pointer",opacity:(!completo||enviando)?0.7:1}}>{enviando?"Assinando…":"Assinar contrato"}</button>
+          <p style={{color:C.s,fontSize:12,margin:0,textAlign:"center",lineHeight:1.4}}>A assinatura é registrada no SGPsign, com data e hora.</p>
         </div>
       )}
     </div>
@@ -1271,7 +1274,8 @@ const AssinarContrato=({cliente,onClose})=>{
 
 const Contrato = ({goBack,cliente}) => {
   const [verPdf,setVerPdf]=useState(null);
-  const assinado=!!cliente.termoAssinado;
+  const [assinando,setAssinando]=useState(false); const [feito,setFeito]=useState(false);
+  const assinado=!!cliente.termoAssinado||feito;
   const url=cliente.termoUrl||"";
   const pdf=cliente.termoPdf||"";
   const abrir=async(u)=>{ if(!u)return; try{ await Browser.open({url:u,presentationStyle:"fullscreen"}); }catch(e){ window.open(u,"_blank"); } };
@@ -1290,25 +1294,26 @@ const Contrato = ({goBack,cliente}) => {
       {assinado ? (
         <div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.25)",borderRadius:16,padding:18,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
           <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(52,211,153,0.15)",border:"2px solid rgba(52,211,153,0.4)",display:"flex",alignItems:"center",justifyContent:"center",color:C.g}}><Ic n="ok" size={28} w={1.9}/></div>
-          <p style={{color:C.g,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Contrato assinado</p>
-          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Seu termo de adesão já está assinado e registrado no sistema.</p>
+          <p style={{color:C.g,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>{feito?"Contrato assinado!":"Contrato assinado"}</p>
+          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>{feito?"Obrigado! Sua assinatura foi registrada.":"Seu termo de adesão já está assinado e registrado no sistema."}</p>
           {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:8,width:"100%",background:C.surf2,color:C.t,border:`1px solid ${C.line2}`,borderRadius:12,padding:13,fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:"inherit"}}><Ic n="documento" size={18}/>Baixar termo assinado (PDF)</button>}
         </div>
       ) : (
         <div style={{background:`rgba(${C.yRgb},0.07)`,border:`1px solid rgba(${C.yRgb},0.25)`,borderRadius:16,padding:18,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
           <div style={{width:60,height:60,borderRadius:"50%",background:`rgba(${C.yRgb},0.15)`,border:`2px solid rgba(${C.yRgb},0.35)`,display:"flex",alignItems:"center",justifyContent:"center",color:C.yd}}><Ic n="caneta" size={28} w={1.9}/></div>
           <p style={{color:C.t,fontSize:16,fontWeight:700,margin:"4px 0 0"}}>Termo de adesão pendente</p>
-          <p style={{color:C.s,fontSize:13,margin:0,lineHeight:1.5}}>Você tem um termo de adesão para assinar. A assinatura é feita na página oficial, com validade jurídica.</p>
-          {url ? (
-            <button onClick={()=>abrirNoApp(url)} style={{marginTop:10,width:"100%",background:C.y,color:C.navy,border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:700,cursor:"pointer"}}>Assinar contrato →</button>
-          ) : (
-            <p style={{color:C.s,fontSize:12,margin:"8px 0 0",fontStyle:"italic"}}>O link de assinatura ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
+          {url ? (<>
+            <p style={{color:C.s,fontSize:14,margin:0,lineHeight:1.5}}>Assine aqui mesmo no app: foto do documento, selfie com o documento e sua assinatura. Leva 2 minutos.</p>
+            {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:10,width:"100%",background:C.surf2,color:C.t,border:`1.5px solid ${C.line2}`,borderRadius:12,padding:13,fontSize:15,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontFamily:"inherit"}}><Ic n="documento" size={18}/>Ler o termo de adesão</button>}
+            <Btn label={<IcTxt n="caneta" t="Assinar agora"/>} onClick={()=>setAssinando(true)} s={{marginTop:4}}/>
+          </>) : (
+            <p style={{color:C.s,fontSize:13,margin:"8px 0 0",fontStyle:"italic"}}>O termo ainda não está disponível. Fale com o suporte se precisar assinar agora.</p>
           )}
-          {pdf&&<button onClick={()=>setVerPdf(pdf)} style={{marginTop:4,width:"100%",background:"none",color:C.s,border:"none",fontSize:13,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>Ver o termo (PDF)</button>}
         </div>
       )}
     </div>
       {verPdf&&<PdfViewer url={verPdf} title="Termo de adesão" onClose={()=>setVerPdf(null)}/>}
+      {assinando&&<AssinarContrato cliente={cliente} onClose={()=>setAssinando(false)} onAssinado={()=>setFeito(true)}/>}
     </>
   );
 };
@@ -1483,8 +1488,14 @@ const TLABELS={home:"Início",boleto:"Boleto",velocidade:"Velocidade",apps:"Meus
 const TICONS={home:Ico.home,boleto:Ico.boleto,velocidade:Ico.velocidade,apps:Ico.apps,wifi:Ico.wifi,suporte:Ico.suporte};
 
 // ─── APP ───
+// no celular (APK) ou no navegador (Central do Assinante no site)
+const ehNativo=()=>{ try{ const cap=window.Capacitor; return !!(cap&&cap.isNativePlatform&&cap.isNativePlatform()); }catch(e){ return false; } };
 // ─── NOTIFICAÇÕES PUSH (Firebase) ───
+// Um ouvinte só, para o app inteiro: ele sempre usa o login atual. Antes, cada login somava
+// um ouvinte novo e o token também era enviado com o CPF de logins anteriores (o n8n recusava).
+const PUSH={cpf:"",contrato:"",ouvindo:false};
 const registrarPush=async(cpf,contratoId)=>{
+  PUSH.cpf=String(cpf||"").replace(/\D/g,""); PUSH.contrato=String(contratoId||"");
   try{
     const cap=window.Capacitor;
     if(!cap||!cap.isNativePlatform||!cap.isNativePlatform())return; // só no celular
@@ -1492,9 +1503,13 @@ const registrarPush=async(cpf,contratoId)=>{
     let perm=await PushNotifications.checkPermissions();
     if(perm.receive!=="granted") perm=await PushNotifications.requestPermissions();
     if(perm.receive!=="granted")return;
-    PushNotifications.addListener("registration",async(t)=>{
-      try{await api("app-token",{cpf:String(cpf||"").replace(/\D/g,""),contrato:String(contratoId||""),token:t.value,plataforma:"android"});}catch(e){}
-    });
+    if(!PUSH.ouvindo){
+      PUSH.ouvindo=true;
+      PushNotifications.addListener("registration",async(t)=>{
+        if(!PUSH.cpf||!SESSAO)return;
+        try{await api("app-token",{cpf:PUSH.cpf,contrato:PUSH.contrato,token:t.value,plataforma:"android"});}catch(e){}
+      });
+    }
     await PushNotifications.register();
   }catch(e){}
 };
@@ -1582,7 +1597,7 @@ export default function App(){
   };
 
   return(
-    <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>
+    <div style={{position:"fixed",inset:0,maxWidth:520,margin:"0 auto",boxShadow:"0 0 40px rgba(0,0,0,0.12)",background:C.bg,display:"flex",flexDirection:"column",fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>
       <EstilosGlobais/>
       {/* área de conteúdo — ocupa o espaço disponível e rola */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingTop:"env(safe-area-inset-top)"}}>
