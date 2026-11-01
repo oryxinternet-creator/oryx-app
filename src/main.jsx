@@ -8,11 +8,11 @@ createRoot(document.getElementById("root")).render(
   </React.StrictMode>
 );
 
-// Remove a tela de abertura (logo + slogan) após o app montar, com um tempo mínimo de exibição
+// Remove a tela de abertura (logo + slogan) apÃ³s o app montar, com um tempo mÃ­nimo de exibiÃ§Ã£o
 const tiraSplash = () => {
   const s = document.getElementById("app-splash");
   if (!s) return;
   s.style.opacity = "0";
   setTimeout(() => s.remove(), 500);
 };
-setTimeout(tiraSplash, 900);
+setTimeout(tiraSplash, 500);
