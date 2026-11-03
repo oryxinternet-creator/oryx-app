@@ -602,7 +602,7 @@ const Promos=()=>{
         {promos.map((p,i)=>(
           <div key={i} onClick={()=>abrir(p.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 4px 14px rgba(0,0,0,0.18)"}}>
             {p.imagem
-              ? <img src={p.imagem} alt={p.titulo||"Promoção"} style={{width:"100%",display:"block",objectFit:"cover"}}/>
+              ? <div style={{position:"relative",aspectRatio:"16 / 9",overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${p.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={p.imagem} alt={p.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{p.link&&p.botao&&<div style={{position:"absolute",left:14,bottom:14,background:`${C.yd}`,color:"#1a1000",fontSize:13,fontWeight:800,padding:"7px 14px",borderRadius:9,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{p.botao} →</div>}</div>
               : <div style={{background:`linear-gradient(135deg,${p.cor||C.navy},${C.navy})`,padding:18,color:"#fff",position:"relative"}}>
                   <div style={{position:"absolute",top:-8,right:-8,width:54,height:54,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
                   <div style={{fontSize:12,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>PROMOÇÃO</div>
@@ -717,7 +717,7 @@ const CardCentral = ({cliente,goTo}) => {
         {promos.map((pp,i)=>(
           <div key={i} onClick={()=>abrir(pp.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:22,overflow:"hidden",cursor:"pointer",boxShadow:"0 12px 30px rgba(0,0,0,0.18)"}}>
             {pp.imagem
-              ? <img src={pp.imagem} alt={pp.titulo||"Promoção"} style={{width:"100%",display:"block",objectFit:"cover"}}/>
+              ? <div style={{position:"relative",aspectRatio:"16 / 9",overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${pp.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={pp.imagem} alt={pp.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{pp.link&&pp.botao&&<div style={{position:"absolute",left:16,bottom:16,background:`${C.yd}`,color:"#1a1c4e",fontSize:14,fontWeight:800,padding:"9px 16px",borderRadius:10,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{pp.botao} →</div>}</div>
               : <div style={{background:`linear-gradient(140deg,${pp.cor||C.navy},#1a1c4e)`,padding:"24px 20px",color:"#fff",position:"relative",minHeight:160}}>
                   <div style={{position:"absolute",top:-12,right:-12,width:70,height:70,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
                   <div style={{fontSize:12,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>{pp.selo||"PROMOÇÃO"}</div>
