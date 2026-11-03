@@ -600,10 +600,10 @@ const Promos=()=>{
     <div>
       <div ref={ref} onScroll={onScroll} style={{display:"flex",gap:10,overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
         {promos.map((p,i)=>(
-          <div key={i} onClick={()=>abrir(p.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 4px 14px rgba(0,0,0,0.18)"}}>
+          <div key={i} onClick={()=>abrir(p.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:16,overflow:"hidden",cursor:"pointer",display:"flex",flexDirection:"column",boxShadow:"0 4px 14px rgba(0,0,0,0.18)"}}>
             {p.imagem
-              ? <div style={{position:"relative",aspectRatio:"16 / 9",overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${p.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={p.imagem} alt={p.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{p.link&&p.botao&&<div style={{position:"absolute",left:14,bottom:14,background:`${C.yd}`,color:"#1a1000",fontSize:13,fontWeight:800,padding:"7px 14px",borderRadius:9,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{p.botao} →</div>}</div>
-              : <div style={{background:`linear-gradient(135deg,${p.cor||C.navy},${C.navy})`,padding:18,color:"#fff",position:"relative"}}>
+              ? <div style={{position:"relative",aspectRatio:"16 / 9",flex:1,overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${p.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={p.imagem} alt={p.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{p.link&&p.botao&&<div style={{position:"absolute",left:14,bottom:14,background:`${C.yd}`,color:"#1a1000",fontSize:13,fontWeight:800,padding:"7px 14px",borderRadius:9,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{p.botao} →</div>}</div>
+              : <div style={{background:`linear-gradient(135deg,${p.cor||C.navy},${C.navy})`,padding:18,color:"#fff",position:"relative",flex:1}}>
                   <div style={{position:"absolute",top:-8,right:-8,width:54,height:54,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
                   <div style={{fontSize:12,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>PROMOÇÃO</div>
                   <div style={{fontSize:18,fontWeight:900,margin:"5px 0",position:"relative"}}>{p.titulo}</div>
@@ -715,10 +715,10 @@ const CardCentral = ({cliente,goTo}) => {
     <div>
       <div ref={ref} onScroll={onScroll} style={{display:"flex",gap:10,overflowX:"auto",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",borderRadius:22}}>
         {promos.map((pp,i)=>(
-          <div key={i} onClick={()=>abrir(pp.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:22,overflow:"hidden",cursor:"pointer",boxShadow:"0 12px 30px rgba(0,0,0,0.18)"}}>
+          <div key={i} onClick={()=>abrir(pp.link)} style={{minWidth:"100%",scrollSnapAlign:"center",borderRadius:22,overflow:"hidden",cursor:"pointer",display:"flex",flexDirection:"column",boxShadow:"0 12px 30px rgba(0,0,0,0.18)"}}>
             {pp.imagem
-              ? <div style={{position:"relative",aspectRatio:"16 / 9",overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${pp.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={pp.imagem} alt={pp.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{pp.link&&pp.botao&&<div style={{position:"absolute",left:16,bottom:16,background:`${C.yd}`,color:"#1a1c4e",fontSize:14,fontWeight:800,padding:"9px 16px",borderRadius:10,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{pp.botao} →</div>}</div>
-              : <div style={{background:`linear-gradient(140deg,${pp.cor||C.navy},#1a1c4e)`,padding:"24px 20px",color:"#fff",position:"relative",minHeight:160}}>
+              ? <div style={{position:"relative",aspectRatio:"16 / 9",flex:1,overflow:"hidden",background:C.navy}}><div style={{position:"absolute",inset:-24,backgroundImage:`url(${pp.imagem})`,backgroundSize:"cover",backgroundPosition:"center",filter:"blur(18px)",opacity:0.75}}/><img src={pp.imagem} alt={pp.titulo||"Promoção"} style={{position:"relative",width:"100%",height:"100%",display:"block",objectFit:"contain"}}/>{pp.link&&pp.botao&&<div style={{position:"absolute",left:16,bottom:16,background:`${C.yd}`,color:"#1a1c4e",fontSize:14,fontWeight:800,padding:"9px 16px",borderRadius:10,boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>{pp.botao} →</div>}</div>
+              : <div style={{background:`linear-gradient(140deg,${pp.cor||C.navy},#1a1c4e)`,padding:"24px 20px",color:"#fff",position:"relative",flex:1,minHeight:160}}>
                   <div style={{position:"absolute",top:-12,right:-12,width:70,height:70,borderRadius:"50%",background:`rgba(${C.yRgb},0.85)`}}/>
                   <div style={{fontSize:12,color:`${C.yd}`,fontWeight:800,letterSpacing:1,position:"relative"}}>{pp.selo||"PROMOÇÃO"}</div>
                   <div style={{fontSize:23,fontWeight:900,margin:"8px 0 4px",position:"relative",lineHeight:1.15}}>{pp.titulo}</div>
@@ -1272,7 +1272,7 @@ const AssinarContrato=({cliente,onClose,onAssinado})=>{
   );
 };
 
-const Contrato = ({goBack,cliente}) => {
+const Contrato = ({goBack,cliente,onAssinado}) => {
   const [verPdf,setVerPdf]=useState(null);
   const [assinando,setAssinando]=useState(false); const [feito,setFeito]=useState(false);
   const assinado=!!cliente.termoAssinado||feito;
@@ -1313,7 +1313,7 @@ const Contrato = ({goBack,cliente}) => {
       )}
     </div>
       {verPdf&&<PdfViewer url={verPdf} title="Termo de adesão" onClose={()=>setVerPdf(null)}/>}
-      {assinando&&<AssinarContrato cliente={cliente} onClose={()=>setAssinando(false)} onAssinado={()=>setFeito(true)}/>}
+      {assinando&&<AssinarContrato cliente={cliente} onClose={()=>setAssinando(false)} onAssinado={()=>{ setFeito(true); onAssinado&&onAssinado(); }}/>}
     </>
   );
 };
@@ -1528,6 +1528,8 @@ export default function App(){
   const mkCliente=(a,ct)=>({cpf:a.cpf,senha:a.senha||"",demo:!!a.demo,nome:a.nome,contratoId:ct.contratoId,clienteId:ct.clienteId,plano:ct.plano||"Internet",status:ct.status||"Ativo",vencimento:ct.vencimento||null,valorAberto:ct.valorAberto||null,titulos:ct.titulos||0,pendencia:!!ct.pendencia,termoAssinado:!!ct.termoAssinado,termoUrl:ct.termoUrl||"",termoPdf:ct.termoPdf||""});
   const [aviso,setAviso]=useState("");
   const onAuth=(a)=>{ SESSAO=a.sessao||""; setAviso(""); setConta(a); if(a.contratos.length===1){ setCliente(mkCliente(a,a.contratos[0])); preCarregar(mkCliente(a,a.contratos[0])); setScreen("main"); salvarSessao(a,a.contratos[0].contratoId); registrarPush(a.cpf,a.contratos[0].contratoId); } else { setScreen("selecao"); salvarSessao(a,null); } };
+  // assinou o contrato no app: a tela inicial deixa de pedir a assinatura na hora, sem reabrir
+  const marcarAssinado=()=>{ const id=String(cliente&&cliente.contratoId); setCliente(c=>c?{...c,termoAssinado:true}:c); setConta(ct=>ct?{...ct,contratos:ct.contratos.map(x=>String(x.contratoId)===id?{...x,termoAssinado:true}:x)}:ct); };
   const escolher=(ct)=>{ setCliente(mkCliente(conta,ct)); preCarregar(mkCliente(conta,ct)); setScreen("main"); salvarSessao(conta,ct.contratoId); registrarPush(conta.cpf,ct.contratoId); };
   const refreshCliente=async()=>{
     if(!conta||!cliente)return;
@@ -1590,7 +1592,7 @@ export default function App(){
     consumo:<Consumo goBack={goBack} cliente={cliente}/>,
     suporte:<Suporte goBack={goBack} goTo={goTo}/>,
     desbloqueio:<Desbloqueio goBack={goBack} cliente={cliente}/>,
-    contrato:<Contrato goBack={goBack} cliente={cliente}/>,
+    contrato:<Contrato goBack={goBack} cliente={cliente} onAssinado={marcarAssinado}/>,
     atualizar:<AtualizarCadastro goBack={goBack} cliente={cliente}/>,
     notas:<Notas goBack={goBack} cliente={cliente}/>,
     perfil:<Perfil goBack={goBack} goLogin={goLogin} goTo={goTo} cliente={cliente}/>,
